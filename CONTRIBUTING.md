@@ -28,4 +28,4 @@ cd gui && ./build.sh /tmp/clashhub-check     # 改动 GUI 时执行
 
 ## 报告问题
 
-请附上：macOS 版本、ClashHub 版本（`./srhop status`）、复现步骤、`~/Library/Logs/srhop.log` 中相关片段（先确认没有订阅地址或 token）。安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
+请附上：macOS 版本、ClashHub 版本（`./clashhub status`）、复现步骤、`~/Library/Logs/ClashHub.log` 中相关片段（先确认没有订阅地址或 token）。安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。

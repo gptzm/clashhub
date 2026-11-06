@@ -9,7 +9,7 @@
 ClashHub 是本机工具，安全模型基于以下前提：
 
 - 所有监听地址绑定 `127.0.0.1`，不对外网提供服务。
-- `127.0.0.1:33335` 的本地 API 需要 `~/Library/Application Support/srhop/api-token` 中的随机 token，并校验 `Origin`，拒绝跨站请求。
+- `127.0.0.1:33335` 的本地 API 需要 `~/Library/Application Support/ClashHub/api-token` 中的随机 token，并校验 `Origin`，拒绝跨站请求。
 - 订阅地址、token、节点凭据不会写入日志；错误信息只暴露稳定的错误类别。
 - 对 FlClash 数据库仅做只读查询，不写回、不迁移。
 - 仓库不包含任何真实订阅、节点、账号或密钥。

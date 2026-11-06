@@ -1,4 +1,4 @@
-# ClashHub / srhop
+# ClashHub
 
 [简体中文](README.md) · [English](README.en.md)
 
@@ -11,7 +11,7 @@ ClashHub merges nodes from multiple Clash/FlClash profiles into one pool (Japan 
 - **Ordinary traffic** (`主代理` selector internally): everything except the configured AI domains
 - **AI traffic** (`AI主代理` selector internally): only the official domains of the selected AI providers (openai / claude / gemini / grok, multi-select)
 
-A local fallback proxy (`127.0.0.1:33210` by default) is used only when every candidate has explicitly failed — not on the first hiccup.
+A local fallback proxy (`127.0.0.1:7890` by default) is used only when every candidate has explicitly failed — not on the first hiccup.
 
 ## Screenshots
 
@@ -63,7 +63,7 @@ The two routes lock independently: ordinary traffic can keep following automatic
 apps / browsers
       │  system proxy (HTTP 33333 / SOCKS 33334)
       ▼
-  srhop daemon ──────────────► stats & local API (127.0.0.1:33335)
+  ClashHub daemon ──────────────► stats & local API (127.0.0.1:33335)
       │  ordinary → 主代理
       │  AI domains → AI主代理
       ▼
@@ -73,7 +73,7 @@ apps / browsers
   nodes (from configured sources)
       │  all candidates failed
       ▼
-  fallback addresses (127.0.0.1:33210 by default, configurable list)
+  fallback addresses (127.0.0.1:7890 by default, configurable list)
 ```
 
 | Port | Purpose |
@@ -83,7 +83,7 @@ apps / browsers
 | `127.0.0.1:33335` | Stats / source / diagnostics API (Bearer token) |
 | `127.0.0.1:33301` | mihomo mixed port (loopback only) |
 | `127.0.0.1:19090` | mihomo controller (loopback only) |
-| `127.0.0.1:33210` | Default fallback proxy (external process, not started by this project) |
+| `127.0.0.1:7890` | Default fallback proxy (external process, not started by this project) |
 
 ## Quick start
 
@@ -100,14 +100,14 @@ apps / browsers
 
 ```bash
 git clone https://github.com/gptzm/clashhub.git && cd clashhub
-go build -o srhop ./cmd/srhop
+go build -o clashhub ./cmd/clashhub
 
-./srhop on       # take over the system proxy and start the daemon
-./srhop status   # mode, upstream, probe latency
-./srhop off      # stop and restore the previous system proxy
+./clashhub on       # take over the system proxy and start the daemon
+./clashhub status   # mode, upstream, probe latency
+./clashhub off      # stop and restore the previous system proxy
 ```
 
-The first run creates `~/Library/Application Support/srhop/config.json`. `sources` starts empty; add at least one profile or subscription:
+The first run creates `~/Library/Application Support/ClashHub/config.json`. `sources` starts empty; add at least one profile or subscription:
 
 - with FlClash installed, URL-type profiles are discovered automatically;
 - or add a local YAML path / subscription URL in **Settings → Airports**.
@@ -115,18 +115,18 @@ The first run creates `~/Library/Application Support/srhop/config.json`. `source
 Other commands:
 
 ```bash
-./srhop serve       # run the daemon in the foreground (debug)
-./srhop retry       # re-probe the engine now
-./srhop update      # regenerate node config and hot-reload
-./srhop logs        # recent log lines
-./srhop doctor      # one-shot diagnostics
+./clashhub serve       # run the daemon in the foreground (debug)
+./clashhub retry       # re-probe the engine now
+./clashhub update      # regenerate node config and hot-reload
+./clashhub logs        # recent log lines
+./clashhub doctor      # one-shot diagnostics
 ```
 
 ### Menu-bar app
 
 ```bash
 # build the daemon in the repository root first; build.sh embeds it in the app
-go build -o srhop ./cmd/srhop
+go build -o clashhub ./cmd/clashhub
 
 cd gui
 ./build.sh                    # builds gui/ClashHub.app
@@ -143,7 +143,7 @@ The app talks only to the loopback API on `127.0.0.1:33335` with a local token.
 # produces dist/ClashHub-<version>.dmg and dist/ClashHub-<version>.zip
 ```
 
-The bundle embeds the daemon and `gen_config.py`, so the installed ClashHub.app starts by double-click without a `~/srhop` checkout. mihomo and Python/PyYAML remain runtime dependencies and are not bundled.
+The bundle embeds the daemon and `gen_config.py`, so the installed ClashHub.app starts by double-click without a `~/clashhub` checkout. mihomo and Python/PyYAML remain runtime dependencies and are not bundled.
 
 The package is ad-hoc signed. If Gatekeeper blocks the first launch, right-click → Open, or run:
 
@@ -162,7 +162,7 @@ xattr -dr com.apple.quarantine /Applications/ClashHub.app
 
 ## Configuration
 
-Config file: `~/Library/Application Support/srhop/config.json`
+Config file: `~/Library/Application Support/ClashHub/config.json`
 
 | Key | Meaning |
 | --- | --- |
@@ -181,11 +181,11 @@ Node priority can be adjusted per node in the GUI or through `/api/node-prioriti
 
 | Path | Contents |
 | --- | --- |
-| `~/Library/Application Support/srhop/mihomo/config.yaml` | Generated mihomo config (contains a secret, mode 0600) |
-| `~/Library/Application Support/srhop/api-token` | Local API token, generated on first run |
-| `~/Library/Application Support/srhop/stats.json` | Health, traffic and cumulative domain history (node names hashed) |
-| `~/Library/Application Support/srhop/sources/` | Subscription caches (0600, never committed) |
-| `~/Library/Logs/srhop.log` | Daemon log |
+| `~/Library/Application Support/ClashHub/mihomo/config.yaml` | Generated mihomo config (contains a secret, mode 0600) |
+| `~/Library/Application Support/ClashHub/api-token` | Local API token, generated on first run |
+| `~/Library/Application Support/ClashHub/stats.json` | Health, traffic and cumulative domain history (node names hashed) |
+| `~/Library/Application Support/ClashHub/sources/` | Subscription caches (0600, never committed) |
+| `~/Library/Logs/ClashHub.log` | Daemon log |
 | `~/Library/Logs/mihomo.log` | Engine log |
 
 ## Health and routing model
@@ -221,16 +221,16 @@ Key files:
 
 | File | Responsibility |
 | --- | --- |
-| `cmd/srhop/main.go` | CLI entry and subcommands |
-| `cmd/srhop/app.go` | Daemon lifecycle, system proxy takeover/restore |
-| `cmd/srhop/engine.go` | mihomo config generation, validation, hot reload |
+| `cmd/clashhub/main.go` | CLI entry and subcommands |
+| `cmd/clashhub/app.go` | Daemon lifecycle, system proxy takeover/restore |
+| `cmd/clashhub/engine.go` | mihomo config generation, validation, hot reload |
 | `gen_config.py` | Build mihomo config from source YAML |
-| `cmd/srhop/node_health.go` | Probing, health decisions, selection |
-| `cmd/srhop/node_selection.go` | Selector operations and local API |
-| `cmd/srhop/node_diagnostics.go` | Diagnostic snapshots and manual scans |
-| `cmd/srhop/node_traffic_service.go` | Per-node traffic sampling |
-| `cmd/srhop/source_runtime.go` / `source_discovery.go` | Source fetching, caching and discovery |
-| `cmd/srhop/route_traffic.go` | Ordinary vs. AI byte accounting |
+| `cmd/clashhub/node_health.go` | Probing, health decisions, selection |
+| `cmd/clashhub/node_selection.go` | Selector operations and local API |
+| `cmd/clashhub/node_diagnostics.go` | Diagnostic snapshots and manual scans |
+| `cmd/clashhub/node_traffic_service.go` | Per-node traffic sampling |
+| `cmd/clashhub/source_runtime.go` / `source_discovery.go` | Source fetching, caching and discovery |
+| `cmd/clashhub/route_traffic.go` | Ordinary vs. AI byte accounting |
 | `gui/main.swift` | ClashHub menu-bar app |
 
 ## Recommended providers

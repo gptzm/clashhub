@@ -1,4 +1,4 @@
-# ClashHub / srhop
+# ClashHub
 
 [简体中文](README.md) · [English](README.en.md)
 
@@ -11,7 +11,7 @@ macOS 上的**指定地区节点聚合**与选路守护进程，附带菜单栏�
 - **普通流量**（内部 `主代理` 选择器）：除 AI 域名外的所有流量
 - **AI流量**（内部 `AI主代理` 选择器）：只接管所选 AI 服务商的官方域名（openai / claude / gemini / grok，可多选）
 
-只有候选节点全部明确失败时才回落到本地备用代理（默认 `127.0.0.1:33210`），而不是一生气就切换。
+只有候选节点全部明确失败时才回落到本地备用代理（默认 `127.0.0.1:7890`），而不是一生气就切换。
 
 ## 界面
 
@@ -63,7 +63,7 @@ macOS 上的**指定地区节点聚合**与选路守护进程，附带菜单栏�
 应用 / 浏览器
       │  系统代理（HTTP 33333 / SOCKS 33334）
       ▼
-  srhop 守护进程 ──────────────► 统计与本地 API（127.0.0.1:33335）
+  ClashHub 守护进程 ──────────────► 统计与本地 API（127.0.0.1:33335）
       │  普通流量 → 主代理
       │  AI 域名   → AI主代理
       ▼
@@ -73,7 +73,7 @@ macOS 上的**指定地区节点聚合**与选路守护进程，附带菜单栏�
   节点（来自各配置来源）
       │  全部失败时
       ▼
-  备用地址（默认 127.0.0.1:33210，可配置多个）
+  备用地址（默认 127.0.0.1:7890，可配置多个）
 ```
 
 | 端口 | 用途 |
@@ -83,7 +83,7 @@ macOS 上的**指定地区节点聚合**与选路守护进程，附带菜单栏�
 | `127.0.0.1:33335` | 统计 / 来源 / 诊断 API（Bearer token） |
 | `127.0.0.1:33301` | mihomo 混合端口（仅本机） |
 | `127.0.0.1:19090` | mihomo 控制器（仅本机） |
-| `127.0.0.1:33210` | 默认备用代理（外部进程，不由本项目启动） |
+| `127.0.0.1:7890` | 默认备用代理（外部进程，不由本项目启动） |
 
 ## 快速开始
 
@@ -100,14 +100,14 @@ macOS 上的**指定地区节点聚合**与选路守护进程，附带菜单栏�
 
 ```bash
 git clone https://github.com/gptzm/clashhub.git && cd clashhub
-go build -o srhop ./cmd/srhop
+go build -o clashhub ./cmd/clashhub
 
-./srhop on       # 接管系统代理并启动守护进程
-./srhop status   # 查看当前模式、上游、探测延迟
-./srhop off      # 停止并恢复原有系统代理
+./clashhub on       # 接管系统代理并启动守护进程
+./clashhub status   # 查看当前模式、上游、探测延迟
+./clashhub off      # 停止并恢复原有系统代理
 ```
 
-首次运行会在 `~/Library/Application Support/srhop/` 生成 `config.json`。默认 `sources` 为空，需要加入至少一个配置或订阅：
+首次运行会在 `~/Library/Application Support/ClashHub/` 生成 `config.json`。默认 `sources` 为空，需要加入至少一个配置或订阅：
 
 - 已安装 FlClash 时，URL 类型配置会被自动发现并登记；
 - 也可以在 GUI「设置 → 机场配置」里添加本机 YAML 路径或订阅地址。
@@ -115,18 +115,18 @@ go build -o srhop ./cmd/srhop
 其他命令：
 
 ```bash
-./srhop serve       # 前台运行守护进程（调试用）
-./srhop retry       # 立即重新探测引擎
-./srhop update      # 重新生成节点配置并热加载
-./srhop logs        # 最近日志
-./srhop doctor      # 一次性诊断
+./clashhub serve       # 前台运行守护进程（调试用）
+./clashhub retry       # 立即重新探测引擎
+./clashhub update      # 重新生成节点配置并热加载
+./clashhub logs        # 最近日志
+./clashhub doctor      # 一次性诊断
 ```
 
 ### 菜单栏 GUI
 
 ```bash
 # 先在仓库根目录构建守护进程；build.sh 会把它一起打进 app
-go build -o srhop ./cmd/srhop
+go build -o clashhub ./cmd/clashhub
 
 cd gui
 ./build.sh                    # 生成 gui/ClashHub.app
@@ -143,7 +143,7 @@ GUI 只通过本机 `127.0.0.1:33335` 的带 token API 与守护进程通信，�
 # 产物：dist/ClashHub-<版本>.dmg 和 dist/ClashHub-<版本>.zip
 ```
 
-安装包内嵌了守护进程与 `gen_config.py`，安装后的 ClashHub.app 可双击直接启动，不依赖 `~/srhop` 目录。mihomo 与 Python/PyYAML 仍是运行依赖，不会被一起打包。
+安装包内嵌了守护进程与 `gen_config.py`，安装后的 ClashHub.app 可双击直接启动，不依赖 `~/clashhub` 目录。mihomo 与 Python/PyYAML 仍是运行依赖，不会被一起打包。
 
 安装包使用临时签名（ad-hoc）。首次启动如被 Gatekeeper 拦截，请右键 → 打开，或执行：
 
@@ -162,7 +162,7 @@ xattr -dr com.apple.quarantine /Applications/ClashHub.app
 
 ## 配置
 
-配置文件：`~/Library/Application Support/srhop/config.json`
+配置文件：`~/Library/Application Support/ClashHub/config.json`
 
 | 字段 | 说明 |
 | --- | --- |
@@ -181,11 +181,11 @@ xattr -dr com.apple.quarantine /Applications/ClashHub.app
 
 | 路径 | 内容 |
 | --- | --- |
-| `~/Library/Application Support/srhop/mihomo/config.yaml` | 生成的 mihomo 配置（含密钥，权限 0600） |
-| `~/Library/Application Support/srhop/api-token` | 本地 API token，首次运行随机生成 |
-| `~/Library/Application Support/srhop/stats.json` | 健康、流量与历史域名累计（节点名做哈希） |
-| `~/Library/Application Support/srhop/sources/` | 订阅缓存（0600，不进入版本库） |
-| `~/Library/Logs/srhop.log` | 守护进程日志 |
+| `~/Library/Application Support/ClashHub/mihomo/config.yaml` | 生成的 mihomo 配置（含密钥，权限 0600） |
+| `~/Library/Application Support/ClashHub/api-token` | 本地 API token，首次运行随机生成 |
+| `~/Library/Application Support/ClashHub/stats.json` | 健康、流量与历史域名累计（节点名做哈希） |
+| `~/Library/Application Support/ClashHub/sources/` | 订阅缓存（0600，不进入版本库） |
+| `~/Library/Logs/ClashHub.log` | 守护进程日志 |
 | `~/Library/Logs/mihomo.log` | 引擎日志 |
 
 ## 健康与选路模型
@@ -221,16 +221,16 @@ cd gui && ./build.sh /tmp/check  # GUI 构建检查
 
 | 文件 | 职责 |
 | --- | --- |
-| `cmd/srhop/main.go` | CLI 入口与子命令 |
-| `cmd/srhop/app.go` | 守护进程生命周期、系统代理接管与恢复 |
-| `cmd/srhop/engine.go` | mihomo 配置生成、校验、热加载 |
+| `cmd/clashhub/main.go` | CLI 入口与子命令 |
+| `cmd/clashhub/app.go` | 守护进程生命周期、系统代理接管与恢复 |
+| `cmd/clashhub/engine.go` | mihomo 配置生成、校验、热加载 |
 | `gen_config.py` | 从来源 YAML 生成 mihomo 配置 |
-| `cmd/srhop/node_health.go` | 节点探测、健康判定、选路 |
-| `cmd/srhop/node_selection.go` | 选择器操作与本地 API |
-| `cmd/srhop/node_diagnostics.go` | 诊断快照与手动扫描 |
-| `cmd/srhop/node_traffic_service.go` | 节点流量采样 |
-| `cmd/srhop/source_runtime.go` / `source_discovery.go` | 来源拉取、缓存与自动发现 |
-| `cmd/srhop/route_traffic.go` | 普通流量 / AI 流量字节拆分 |
+| `cmd/clashhub/node_health.go` | 节点探测、健康判定、选路 |
+| `cmd/clashhub/node_selection.go` | 选择器操作与本地 API |
+| `cmd/clashhub/node_diagnostics.go` | 诊断快照与手动扫描 |
+| `cmd/clashhub/node_traffic_service.go` | 节点流量采样 |
+| `cmd/clashhub/source_runtime.go` / `source_discovery.go` | 来源拉取、缓存与自动发现 |
+| `cmd/clashhub/route_traffic.go` | 普通流量 / AI 流量字节拆分 |
 | `gui/main.swift` | ClashHub 菜单栏应用 |
 
 ## 推荐机场

@@ -20,10 +20,19 @@ import yaml
 
 HOME = os.path.expanduser("~")
 FLCLASH_DIR = os.path.join(HOME, "Library", "Application Support", "com.follow.clash")
-SRHOP_DIR = os.path.join(HOME, "Library", "Application Support", "srhop")
-MIHOMO_DIR = os.path.join(SRHOP_DIR, "mihomo")
+CLASHHUB_DIR = os.path.join(HOME, "Library", "Application Support", "ClashHub")
+LEGACY_DIR = os.path.join(HOME, "Library", "Application Support", "srhop")
+# The daemon normally migrates this first; keep manual runs working too.
+if not os.path.exists(os.path.join(CLASHHUB_DIR, "config.json")) and os.path.exists(os.path.join(LEGACY_DIR, "config.json")):
+    try:
+        if os.path.isdir(CLASHHUB_DIR):
+            shutil.rmtree(CLASHHUB_DIR)
+        shutil.move(LEGACY_DIR, CLASHHUB_DIR)
+    except Exception:
+        pass
+MIHOMO_DIR = os.path.join(CLASHHUB_DIR, "mihomo")
 CONFIG_PATH = os.path.join(MIHOMO_DIR, "config.yaml")
-SRHOP_CONFIG = os.path.join(SRHOP_DIR, "config.json")
+CLASHHUB_CONFIG = os.path.join(CLASHHUB_DIR, "config.json")
 
 JP_RE = re.compile(r"(?i)(日本|JP|Japan|东京|大阪|名古屋|Tokyo|Osaka|Nagoya)")
 INFO_RE = re.compile(r"剩余流量|套餐到期|距离下次|重置|官网|入口|流量|Expires")
@@ -182,9 +191,9 @@ def copy_geodata():
     return copied
 
 
-def srhop_settings():
+def clashhub_settings():
     try:
-        with open(SRHOP_CONFIG, encoding="utf-8") as f:
+        with open(CLASHHUB_CONFIG, encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {}
@@ -231,20 +240,20 @@ def resolve_sources(sc):
     """Resolve enabled sources in priority order.
 
     Returns (active, meta): active are node-eligible entries (profile and
-    subscription; subscription paths point at srhop's private node cache),
+    subscription; subscription paths point at clashhub's private node cache),
     meta covers every enabled source including vpn ones (labels metadata
-    only, never node groups). SRHOP_SOURCE_PROFILES, when the daemon passes
+    only, never node groups). CLASHHUB_SOURCE_PROFILES, when the daemon passes
     it, mirrors the derived source_profiles list and therefore gates which
     profile sources participate.
     """
     env_paths = None
-    if "SRHOP_SOURCE_PROFILES" in os.environ:
+    if "CLASHHUB_SOURCE_PROFILES" in os.environ:
         try:
-            value = json.loads(os.environ["SRHOP_SOURCE_PROFILES"])
+            value = json.loads(os.environ["CLASHHUB_SOURCE_PROFILES"])
         except ValueError:
-            raise ValueError("SRHOP_SOURCE_PROFILES must be a JSON list of paths")
+            raise ValueError("CLASHHUB_SOURCE_PROFILES must be a JSON list of paths")
         if not isinstance(value, list) or not all(isinstance(p, str) and p for p in value):
-            raise ValueError("SRHOP_SOURCE_PROFILES must be a non-empty list of paths")
+            raise ValueError("CLASHHUB_SOURCE_PROFILES must be a non-empty list of paths")
         env_paths = value
 
     if "sources" in sc:
@@ -320,11 +329,11 @@ def resolve_sources(sc):
             ident = os.path.splitext(os.path.basename(path))[0]
             if os.path.dirname(os.path.normpath(path)) == profile_dir and re.fullmatch(r"[0-9]+", ident) and ident in urls:
                 digest = hashlib.sha256(urls[ident].encode("utf-8")).hexdigest()
-                cached = os.path.join(SRHOP_DIR, "sources", "flclash-" + ident + "-" + digest + ".yaml")
+                cached = os.path.join(CLASHHUB_DIR, "sources", "flclash-" + ident + "-" + digest + ".yaml")
                 if os.path.isfile(cached):
                     path = cached
         else:
-            path = os.path.join(SRHOP_DIR, "sources", e["id"] + ".yaml")
+            path = os.path.join(CLASHHUB_DIR, "sources", e["id"] + ".yaml")
         filters = {}
         for key in ("include_keywords", "exclude_keywords"):
             value = e.get(key) or []
@@ -349,14 +358,14 @@ def parse_fallback_address(value):
 
 
 def build():
-    sc = srhop_settings()
+    sc = clashhub_settings()
     keywords = sc.get("aggregate_keywords")
     if keywords is not None:
         if not isinstance(keywords, list) or not keywords or any(not isinstance(k, str) or not k.strip() for k in keywords):
             raise ValueError("aggregate_keywords must be a nonempty list of nonempty strings")
         keywords = [k.strip() for k in keywords]
     primary = sc.get("primary_addr", "127.0.0.1:33301")
-    fallback = sc.get("fallback_addr", "127.0.0.1:33210")
+    fallback = sc.get("fallback_addr", "127.0.0.1:7890")
     controller = sc.get("controller", "127.0.0.1:19090")
     probe = sc.get("probe_url", "https://www.gstatic.com/generate_204")
     ai_probe = sc.get("ai_probe_url", "https://api.openai.com/v1/models")
@@ -406,7 +415,7 @@ def build():
             labels[generated["name"]] = {"profile": e["label"], "name": str(original["name"]), "source_id": e["id"]}
     all_jp = [p for _, jp in sources_jp for p in jp]
     proxies = list(all_jp)
-    proxies.append({"name": "FALLBACK-33210", "type": "http",
+    proxies.append({"name": "FALLBACK-LOCAL", "type": "http",
                     "server": fb_host, "port": fb_port})
 
     def url_test(name, members, url, status, interval):
@@ -453,10 +462,10 @@ def build():
                            "url": target, "expected-status": status,
                            "interval": 20, "timeout": 5000, "lazy": False})
     groups.append({"name": "主代理", "type": "select",
-                   "proxies": ((["BOOT-JP-ALL"] if chain else []) + ["FALLBACK-33210"]
+                   "proxies": ((["BOOT-JP-ALL"] if chain else []) + ["FALLBACK-LOCAL"]
                                + [p["name"] for p in all_jp])})
     groups.append({"name": "AI主代理", "type": "select",
-                   "proxies": ((["BOOT-AI-JP-ALL"] if ai_chain else []) + ["FALLBACK-33210"]
+                   "proxies": ((["BOOT-AI-JP-ALL"] if ai_chain else []) + ["FALLBACK-LOCAL"]
                                + [p["name"] for p in all_jp])})
 
     base_rules = list(base_conf.get("rules") or [])
@@ -512,9 +521,9 @@ def build():
             raise ValueError("mihomo rejected the generated config")
         # Stage both files before publishing; roll back the config if the mapping
         # cannot be published. Cross-file visibility cannot be atomic.
-        label_path = os.path.join(SRHOP_DIR, "node-labels.json")
-        os.makedirs(SRHOP_DIR, exist_ok=True)
-        label_fd, label_tmp = tempfile.mkstemp(prefix=".node-labels-", dir=SRHOP_DIR)
+        label_path = os.path.join(CLASHHUB_DIR, "node-labels.json")
+        os.makedirs(CLASHHUB_DIR, exist_ok=True)
+        label_fd, label_tmp = tempfile.mkstemp(prefix=".node-labels-", dir=CLASHHUB_DIR)
         try:
             with os.fdopen(label_fd, "w", encoding="utf-8") as f:
                 with open(tmp, "rb") as config_file:

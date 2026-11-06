@@ -249,7 +249,7 @@ func decode(_ json: String) -> [String: ProxyInfo] {
     try! JSONDecoder().decode(ProxiesResponse.self, from: Data(json.utf8)).proxies
 }
 let proxies = decode("""
-{"proxies":{"JP-ALL":{"type":"URLTest","all":["jp2","jp1","jp1","FALLBACK-33210","PASS-RULE","nested"]},"jp1":{"type":"Http"},"jp2":{"type":"Shadowsocks"},"other":{"type":"Http"},"FALLBACK-33210":{"type":"Http"},"PASS-RULE":{"type":"Pass"},"nested":{"type":"Selector","all":["other"]},"主代理":{"type":"Selector","now":"jp1"},"AI主代理":{"type":"Selector","now":"FALLBACK-33210"}}}
+{"proxies":{"JP-ALL":{"type":"URLTest","all":["jp2","jp1","jp1","FALLBACK-LOCAL","PASS-RULE","nested"]},"jp1":{"type":"Http"},"jp2":{"type":"Shadowsocks"},"other":{"type":"Http"},"FALLBACK-LOCAL":{"type":"Http"},"PASS-RULE":{"type":"Pass"},"nested":{"type":"Selector","all":["other"]},"主代理":{"type":"Selector","now":"jp1"},"AI主代理":{"type":"Selector","now":"FALLBACK-LOCAL"}}}
 """)
 precondition(japanCandidates(proxies) == ["jp1", "jp2"])
 precondition(japanCandidates(decode("{\\"proxies\\":{}}")) == nil)
@@ -262,19 +262,19 @@ func state(_ mode: String, _ upstream: String, _ healthy: Bool) -> SrhopState {
 }
 var model = TestModel(proxies: proxies, state: state("primary", "localhost:7890", true), nodeError: nil)
 precondition(model.selectedNode("主代理") == "jp1")
-precondition(model.selectedNode("AI主代理", ai: true) == "FALLBACK-33210")
+precondition(model.selectedNode("AI主代理", ai: true) == "FALLBACK-LOCAL")
 model.state = state("primary", "localhost:7890", false)
-precondition(model.selectedNode("AI主代理", ai: true) == "FALLBACK-33210")
+precondition(model.selectedNode("AI主代理", ai: true) == "FALLBACK-LOCAL")
 model.nodeError = "offline"
 precondition(model.selectedNode("主代理") == nil)
 model.state = state("fallback", "127.0.0.1:33210", false)
-precondition(model.selectedNode("主代理") == "FALLBACK-33210")
-precondition(model.selectedNode("AI主代理", ai: true) == "FALLBACK-33210")
+precondition(model.selectedNode("主代理") == "FALLBACK-LOCAL")
+precondition(model.selectedNode("AI主代理", ai: true) == "FALLBACK-LOCAL")
 model.state = state("fallback", "192.0.2.10:9999", true)
-precondition(model.selectedNode("主代理") == "FALLBACK-33210")
-precondition(model.selectedNode("AI主代理", ai: true) == "FALLBACK-33210")
+precondition(model.selectedNode("主代理") == "FALLBACK-LOCAL")
+precondition(model.selectedNode("AI主代理", ai: true) == "FALLBACK-LOCAL")
 model.state = state("fallback", "[::1]:4567", true)
-precondition(model.selectedNode("主代理") == "FALLBACK-33210")
+precondition(model.selectedNode("主代理") == "FALLBACK-LOCAL")
 model.state = state("fallback", "", true)
 precondition(model.selectedNode("主代理") == nil)
 model.state = nil

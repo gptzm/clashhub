@@ -38,10 +38,10 @@ cp "$work/ClashHub" "$app/Contents/MacOS/ClashHub"
 chmod +x "$app/Contents/MacOS/ClashHub"
 
 # When a daemon build is present, bundle it so the app is self-contained.
-if [ -x ../srhop ] && [ -f ../gen_config.py ]; then
-  cp ../srhop "$app/Contents/Resources/srhop"
+if [ -x ../clashhub ] && [ -f ../gen_config.py ]; then
+  cp ../clashhub "$app/Contents/Resources/clashhub"
   cp ../gen_config.py "$app/Contents/Resources/gen_config.py"
-  chmod +x "$app/Contents/Resources/srhop"
+  chmod +x "$app/Contents/Resources/clashhub"
 fi
 
 # Ad-hoc signature is enough for local use; replace with a Developer ID

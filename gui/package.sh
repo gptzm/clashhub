@@ -3,8 +3,8 @@
 #
 #   ./package.sh                 -> ../dist/ClashHub-<version>.dmg (+ .zip)
 #
-# The app bundle embeds the srhop daemon and gen_config.py, so the installed
-# app can start the proxy without a separate ~/srhop checkout. mihomo and
+# The app bundle embeds the clashhub daemon and gen_config.py, so the installed
+# app can start the proxy without a separate ~/clashhub checkout. mihomo and
 # Python/PyYAML are still runtime dependencies and are not bundled.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -18,9 +18,9 @@ echo "==> build ClashHub.app"
 ./build.sh "$stage" >/dev/null
 
 echo "==> embed daemon"
-(cd "$root" && go build -o "$stage/ClashHub.app/Contents/Resources/srhop" ./cmd/srhop)
+(cd "$root" && go build -o "$stage/ClashHub.app/Contents/Resources/clashhub" ./cmd/clashhub)
 cp "$root/gen_config.py" "$stage/ClashHub.app/Contents/Resources/gen_config.py"
-chmod +x "$stage/ClashHub.app/Contents/Resources/srhop"
+chmod +x "$stage/ClashHub.app/Contents/Resources/clashhub"
 # Re-sign after adding executables to the bundle.
 codesign --force --deep --sign - "$stage/ClashHub.app"
 

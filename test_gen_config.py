@@ -26,11 +26,11 @@ class GeneratorTest(unittest.TestCase):
             config = os.path.join(d, 'config.yaml')
             with open(settings, 'w') as f:
                 json.dump({'sources': []}, f)
-            with mock.patch.multiple(g, MIHOMO_DIR=d, SRHOP_DIR=d, CONFIG_PATH=config, SRHOP_CONFIG=settings), mock.patch.dict(os.environ, {'SRHOP_SOURCE_PROFILES': '[]'}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
+            with mock.patch.multiple(g, MIHOMO_DIR=d, CLASHHUB_DIR=d, CONFIG_PATH=config, CLASHHUB_CONFIG=settings), mock.patch.dict(os.environ, {'CLASHHUB_SOURCE_PROFILES': '[]'}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
                 g.build()
             with open(config) as f:
                 cfg = g.yaml.safe_load(f)
-            self.assertEqual([p['name'] for p in cfg['proxies']], ['FALLBACK-33210'])
+            self.assertEqual([p['name'] for p in cfg['proxies']], ['FALLBACK-LOCAL'])
             self.assertTrue(cfg['rules'])
 
     def test_per_source_include_exclude_filters(self):
@@ -67,7 +67,7 @@ class GeneratorTest(unittest.TestCase):
             settings = os.path.join(d, 'settings.json')
             with open(settings, 'w') as f:
                 json.dump({'source_profiles': [source]}, f)
-            with mock.patch.multiple(g, MIHOMO_DIR=d, SRHOP_DIR=d, CONFIG_PATH=config, SRHOP_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
+            with mock.patch.multiple(g, MIHOMO_DIR=d, CLASHHUB_DIR=d, CONFIG_PATH=config, CLASHHUB_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
                 g.build()
             with open(config) as f:
                 rules = g.yaml.safe_load(f)['rules']
@@ -118,7 +118,7 @@ class GeneratorTest(unittest.TestCase):
                     ],
                     'base_rules_source': 'ktm-cloud',
                 }, f)
-            with mock.patch.multiple(g, MIHOMO_DIR=d, SRHOP_DIR=d, CONFIG_PATH=config, SRHOP_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
+            with mock.patch.multiple(g, MIHOMO_DIR=d, CLASHHUB_DIR=d, CONFIG_PATH=config, CLASHHUB_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
                 g.build()
             with open(config) as f:
                 cfg = g.yaml.safe_load(f)
@@ -174,7 +174,7 @@ class GeneratorTest(unittest.TestCase):
             settings = os.path.join(d, 'settings.json')
             with open(settings, 'w') as f:
                 json.dump({'source_profiles': [source]}, f)
-            with mock.patch.multiple(g, MIHOMO_DIR=d, SRHOP_DIR=d, CONFIG_PATH=config, SRHOP_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
+            with mock.patch.multiple(g, MIHOMO_DIR=d, CLASHHUB_DIR=d, CONFIG_PATH=config, CLASHHUB_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
                 g.build()
             with open(config) as f:
                 cfg = g.yaml.safe_load(f)
@@ -197,7 +197,7 @@ class GeneratorTest(unittest.TestCase):
                     {'id': 'big-airport', 'label': '大机场 Big Airport', 'type': 'profile', 'path': big, 'enabled': True},
                     {'id': 'office91', 'label': '玖壹 Office91', 'type': 'subscription', 'enabled': True},
                 ]}, f)
-            with mock.patch.multiple(g, MIHOMO_DIR=d, SRHOP_DIR=d, CONFIG_PATH=config, SRHOP_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
+            with mock.patch.multiple(g, MIHOMO_DIR=d, CLASHHUB_DIR=d, CONFIG_PATH=config, CLASHHUB_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
                 result = g.build()
             with open(config) as f:
                 cfg = g.yaml.safe_load(f)
@@ -221,14 +221,14 @@ class GeneratorTest(unittest.TestCase):
                     {'id': 'big-airport', 'label': '大机场 Big Airport', 'type': 'profile', 'path': big, 'enabled': True},
                     {'id': 'off', 'label': 'Off', 'type': 'profile', 'path': os.path.join(d, 'off.yaml'), 'enabled': False},
                 ], 'base_rules_source': 'off'}, f)
-            with mock.patch.multiple(g, MIHOMO_DIR=d, SRHOP_DIR=d, CONFIG_PATH=config, SRHOP_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
+            with mock.patch.multiple(g, MIHOMO_DIR=d, CLASHHUB_DIR=d, CONFIG_PATH=config, CLASHHUB_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
                 with self.assertRaises(ValueError):
                     g.build()
             with open(settings, 'w') as f:
                 json.dump({'sources': [
                     {'id': 'big-airport', 'label': '大机场 Big Airport', 'type': 'profile', 'path': big, 'enabled': True},
                 ], 'base_rules_source': 'nope'}, f)
-            with mock.patch.multiple(g, MIHOMO_DIR=d, SRHOP_DIR=d, CONFIG_PATH=config, SRHOP_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
+            with mock.patch.multiple(g, MIHOMO_DIR=d, CLASHHUB_DIR=d, CONFIG_PATH=config, CLASHHUB_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
                 with self.assertRaises(ValueError):
                     g.build()
 
@@ -242,7 +242,7 @@ class GeneratorTest(unittest.TestCase):
                     {'id': 'dup', 'label': 'A', 'type': 'profile', 'path': big, 'enabled': True},
                     {'id': 'dup', 'label': 'B', 'type': 'profile', 'path': big, 'enabled': True},
                 ]}, f)
-            with mock.patch.multiple(g, MIHOMO_DIR=d, SRHOP_DIR=d, CONFIG_PATH=os.path.join(d, 'config.yaml'), SRHOP_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
+            with mock.patch.multiple(g, MIHOMO_DIR=d, CLASHHUB_DIR=d, CONFIG_PATH=os.path.join(d, 'config.yaml'), CLASHHUB_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
                 with self.assertRaises(ValueError):
                     g.build()
 
@@ -256,7 +256,7 @@ class GeneratorTest(unittest.TestCase):
             config = os.path.join(d, 'config.yaml')
             settings = os.path.join(d, 'settings.json')
             with open(settings, 'w') as f: json.dump({'source_profiles': paths}, f)
-            with mock.patch.multiple(g, MIHOMO_DIR=d, SRHOP_DIR=d, CONFIG_PATH=config, SRHOP_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True):
+            with mock.patch.multiple(g, MIHOMO_DIR=d, CLASHHUB_DIR=d, CONFIG_PATH=config, CLASHHUB_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True):
                 with mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
                     g.build()
                 with open(config) as f: cfg = g.yaml.safe_load(f)
@@ -294,7 +294,7 @@ class GeneratorTest(unittest.TestCase):
                     {'id': 'big-airport', 'label': '大机场 Big Airport', 'type': 'profile', 'path': big, 'enabled': True},
                     {'id': 'ktm-cloud', 'label': 'KTM Cloud', 'type': 'profile', 'path': ktm, 'enabled': True},
                 ]}, f)
-            with mock.patch.multiple(g, MIHOMO_DIR=d, SRHOP_DIR=d, CONFIG_PATH=config, SRHOP_CONFIG=settings), mock.patch.dict(os.environ, {'SRHOP_SOURCE_PROFILES': json.dumps([big])}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
+            with mock.patch.multiple(g, MIHOMO_DIR=d, CLASHHUB_DIR=d, CONFIG_PATH=config, CLASHHUB_CONFIG=settings), mock.patch.dict(os.environ, {'CLASHHUB_SOURCE_PROFILES': json.dumps([big])}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
                 g.build()
             with open(config) as f:
                 groups = {x['name'] for x in g.yaml.safe_load(f)['proxy-groups']}
@@ -319,7 +319,7 @@ class GeneratorTest(unittest.TestCase):
             for order in (sources, [sources[1], sources[0]]):
                 with open(settings, 'w') as f:
                     json.dump({'sources': order, 'base_rules_source': 'big-airport'}, f)
-                with mock.patch.multiple(g, MIHOMO_DIR=d, SRHOP_DIR=d, CONFIG_PATH=config, SRHOP_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
+                with mock.patch.multiple(g, MIHOMO_DIR=d, CLASHHUB_DIR=d, CONFIG_PATH=config, CLASHHUB_CONFIG=settings), mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(g.subprocess, 'run', return_value=mock.Mock(returncode=0)):
                     g.build()
                 with open(config) as f:
                     rules_seen.append(g.yaml.safe_load(f)['rules'])

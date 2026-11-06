@@ -317,8 +317,8 @@ func isConcreteNode(_ name: String, in proxies: [String: ProxyInfo]) -> Bool {
 // nil means the controller did not provide a usable aggregate, not an empty pool.
 func japanCandidates(_ proxies: [String: ProxyInfo]) -> [String]? {
     guard let group = proxies["JP-ALL"], group.type?.lowercased() == "urltest", let all = group.all else { return nil }
-    guard all.filter({ $0 != "FALLBACK-33210" && $0 != "PASS-RULE" }).allSatisfy({ proxies[$0]?.type?.isEmpty == false }) else { return nil }
-    return Array(Set(all.filter { $0 != "FALLBACK-33210" && $0 != "PASS-RULE" && isConcreteNode($0, in: proxies) }))
+    guard all.filter({ $0 != "FALLBACK-LOCAL" && $0 != "PASS-RULE" }).allSatisfy({ proxies[$0]?.type?.isEmpty == false }) else { return nil }
+    return Array(Set(all.filter { $0 != "FALLBACK-LOCAL" && $0 != "PASS-RULE" && isConcreteNode($0, in: proxies) }))
         .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
 }
 struct SrhopState: Decodable, Equatable {
@@ -343,7 +343,7 @@ func parseTime(_ text: String?) -> Date? {
     guard let text else { return nil }
     // Formatters are mutable; a per-thread pair avoids cross-thread sharing.
     let cache = Thread.current.threadDictionary
-    let key = "srhop.iso8601.formatters"
+    let key = "clashhub.iso8601.formatters"
     let formatters: [ISO8601DateFormatter]
     if let existing = cache[key] as? [ISO8601DateFormatter] { formatters = existing }
     else {
@@ -520,9 +520,9 @@ enum StatsWindow: Int, CaseIterable {
     @Published private(set) var sortedPorts: [StatsPortRow] = []
     @Published private(set) var rankedDomains: [DomainRank] = []
     private var healthGeneration = 0
-    private let healthQueue = DispatchQueue(label: "srhop.health.snapshot", qos: .userInitiated)
+    private let healthQueue = DispatchQueue(label: "clashhub.health.snapshot", qos: .userInitiated)
     private var healthWork: DispatchWorkItem?
-    private let snapshotQueue = DispatchQueue(label: "srhop.files.snapshot", qos: .utility)
+    private let snapshotQueue = DispatchQueue(label: "clashhub.files.snapshot", qos: .utility)
     private let fileCache = FileParseCache()
     private func scheduleHealthSnapshot() {
         healthGeneration += 1
@@ -553,7 +553,20 @@ enum StatsWindow: Int, CaseIterable {
     private var statsGeneration = 0
     weak var window: NSWindow?
     private let home = FileManager.default.homeDirectoryForCurrentUser
-    var support: URL { home.appendingPathComponent("Library/Application Support/srhop") }
+    var support: URL {
+        let url = home.appendingPathComponent("Library/Application Support/ClashHub")
+        let legacy = home.appendingPathComponent("Library/Application Support/srhop")
+        let newConfig = url.appendingPathComponent("config.json")
+        let oldConfig = legacy.appendingPathComponent("config.json")
+        if !FileManager.default.fileExists(atPath: newConfig.path),
+           FileManager.default.fileExists(atPath: oldConfig.path) {
+            if FileManager.default.fileExists(atPath: url.path) {
+                try? FileManager.default.removeItem(at: url)
+            }
+            try? FileManager.default.moveItem(at: legacy, to: url)
+        }
+        return url
+    }
     var stateURL: URL { support.appendingPathComponent("state.json") }
     var configURL: URL { support.appendingPathComponent("config.json") }
     let statsURL = URL(string: "http://127.0.0.1:33335/stats?minutes=60")!
@@ -721,14 +734,14 @@ enum StatsWindow: Int, CaseIterable {
         guard !operationBusy, ["on", "off", "sysproxy"].contains(command) else { return }
         operationBusy = true; operationError = nil
         // Prefer a bundled daemon (standalone .app) and fall back to the
-        // conventional ~/srhop checkout used by development installs.
-        let bundled = Bundle.main.resourceURL?.appendingPathComponent("srhop")
+        // conventional ~/clashhub checkout used by development installs.
+        let bundled = Bundle.main.resourceURL?.appendingPathComponent("clashhub")
         let executable = (bundled.map { FileManager.default.isExecutableFile(atPath: $0.path) } == true)
-            ? bundled! : home.appendingPathComponent("srhop/srhop")
+            ? bundled! : home.appendingPathComponent("clashhub/clashhub")
         var environment = ProcessInfo.processInfo.environment
         if let script = Bundle.main.resourceURL?.appendingPathComponent("gen_config.py"),
            FileManager.default.fileExists(atPath: script.path) {
-            environment["SRHOP_GEN_CONFIG"] = script.path
+            environment["CLASHHUB_GEN_CONFIG"] = script.path
         }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let process = Process(); process.executableURL = executable; process.arguments = [command]
@@ -842,7 +855,7 @@ enum StatsWindow: Int, CaseIterable {
                 let result: Result<NodePrioritiesResponse, Error> = Result {
                     if let error { throw error }
                     guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), let data else {
-                        throw NSError(domain: "srhop", code: 1, userInfo: [NSLocalizedDescriptionKey: "优先级接口未返回成功状态"])
+                        throw NSError(domain: "clashhub", code: 1, userInfo: [NSLocalizedDescriptionKey: "优先级接口未返回成功状态"])
                     }
                     let value = try JSONDecoder().decode(NodePrioritiesResponse.self, from: data)
                     let levels = ["highest", "high", "medium", "low", "lowest"]
@@ -853,7 +866,7 @@ enum StatsWindow: Int, CaseIterable {
                     if let update, !value.nodes.contains(where: { row in
                         row.node == update.node && (update.priority == nil || row.override == update.priority) && (update.enabled == nil || row.enabled == update.enabled)
                     }) {
-                        throw NSError(domain: "srhop", code: 2, userInfo: [NSLocalizedDescriptionKey: "服务端未确认节点策略"])
+                        throw NSError(domain: "clashhub", code: 2, userInfo: [NSLocalizedDescriptionKey: "服务端未确认节点策略"])
                     }
                     return value
                 }
@@ -880,9 +893,9 @@ enum StatsWindow: Int, CaseIterable {
               ["localhost", "127.0.0.1", "::1", "[::1]"].contains(host), url.user == nil, url.password == nil,
               url.path == "/api/nodes", url.query == nil, url.fragment == nil,
               let port = url.port, (1...65535).contains(port) else {
-            throw NSError(domain: "srhop", code: 1, userInfo: [NSLocalizedDescriptionKey: "HTTP 监听地址不是有效的本机地址"])
+            throw NSError(domain: "clashhub", code: 1, userInfo: [NSLocalizedDescriptionKey: "HTTP 监听地址不是有效的本机地址"])
         }
-        guard let token = apiToken, !token.isEmpty, !token.contains("\n"), !token.contains("\r") else { throw NSError(domain: "srhop", code: 2, userInfo: [NSLocalizedDescriptionKey: "API 令牌无效"]) }
+        guard let token = apiToken, !token.isEmpty, !token.contains("\n"), !token.contains("\r") else { throw NSError(domain: "clashhub", code: 2, userInfo: [NSLocalizedDescriptionKey: "API 令牌无效"]) }
         var request = URLRequest(url: url)
         request.httpMethod = method; request.timeoutInterval = 5; request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -950,7 +963,7 @@ enum StatsWindow: Int, CaseIterable {
     func blockedRequest(_ method: String) throws -> URLRequest {
         var request = try nodeRequest(method: method)
         guard let url = request.url?.deletingLastPathComponent().appendingPathComponent("blocked-domains") else {
-            throw NSError(domain: "srhop", code: 1, userInfo: [NSLocalizedDescriptionKey: "HTTP 监听地址无效"])
+            throw NSError(domain: "clashhub", code: 1, userInfo: [NSLocalizedDescriptionKey: "HTTP 监听地址无效"])
         }
         request.url = url
         return request
@@ -1048,7 +1061,7 @@ enum StatsWindow: Int, CaseIterable {
         } catch { if nodeTraffic != nil { trafficByNode = [:]; nodeTraffic = nil } }
     }
     // Live split of OpenAI-bound vs other traffic. The backend counts bytes in
-    // srhop's own listeners, so the numbers stay separate even when both routes
+    // clashhub's own listeners, so the numbers stay separate even when both routes
     // share one upstream node or port.
     func refreshRouteTraffic() {
         let now = ProcessInfo.processInfo.systemUptime
@@ -1602,7 +1615,7 @@ enum StatsWindow: Int, CaseIterable {
                         guard let policy = value.sources.first(where: { $0.id == entry.id }),
                               entry.defaultPriority == nil || policy.defaultPriority == entry.defaultPriority,
                               entry.downgradePatterns == nil || policy.downgradePatterns == entry.downgradePatterns else {
-                            throw NSError(domain: "srhop", code: 1, userInfo: [NSLocalizedDescriptionKey: "来源策略与提交值不一致或来源缺失"])
+                            throw NSError(domain: "clashhub", code: 1, userInfo: [NSLocalizedDescriptionKey: "来源策略与提交值不一致或来源缺失"])
                         }
                     }
                     return value
@@ -1637,7 +1650,7 @@ enum StatsWindow: Int, CaseIterable {
                     let value = try JSONDecoder().decode(SourcesResponse.self, from: data)
                     guard value.sources.count == payload.sources.count,
                           zip(value.sources, payload.sources).allSatisfy({ $0.id == $1.id && $0.enabled == $1.enabled && ($1.includeKeywords == nil || $0.includeKeywords == $1.includeKeywords) && ($1.excludeKeywords == nil || $0.excludeKeywords == $1.excludeKeywords) }) else {
-                        throw NSError(domain: "srhop", code: 2, userInfo: [NSLocalizedDescriptionKey: "来源顺序或启用状态与提交值不一致"])
+                        throw NSError(domain: "clashhub", code: 2, userInfo: [NSLocalizedDescriptionKey: "来源顺序或启用状态与提交值不一致"])
                     }
                     return value
                 }
@@ -1740,7 +1753,7 @@ enum StatsWindow: Int, CaseIterable {
               upload.isFinite, download.isFinite, upload >= 0, download >= 0 else { return "—" }
         return "\(compactRate(upload))/s · \(compactRate(download))/s"
     }
-    // One combined figure for all traffic srhop carries (ordinary and AI).
+    // One combined figure for all traffic clashhub carries (ordinary and AI).
     func globalRateCompact() -> String {
         guard let up = uploadRate, let down = downloadRate,
               up.isFinite, down.isFinite, up >= 0, down >= 0 else { return "↑— ↓—" }
@@ -1748,7 +1761,7 @@ enum StatsWindow: Int, CaseIterable {
     }
     var currentRouteQuality: String {
         guard let node = selectedNode("主代理"), healthError == nil else { return "未知" }
-        let probe = node == "FALLBACK-33210" ? fallbackProbe : nodeHealth[node]?.normal
+        let probe = node == "FALLBACK-LOCAL" ? fallbackProbe : nodeHealth[node]?.normal
         return routeQuality(probe, running: healthRunning || healthStarting)
     }
     var fallbackRouteLabel: String {
@@ -1760,14 +1773,14 @@ enum StatsWindow: Int, CaseIterable {
         return address + " · 外部代理，具体节点未知"
     }
     func displayName(_ name: String) -> String {
-        if name == "FALLBACK-33210" { return fallbackRouteLabel }
+        if name == "FALLBACK-LOCAL" { return fallbackRouteLabel }
         guard let label = labels[name], !label.profile.isEmpty, !label.name.isEmpty else { return name }
         return "\(label.profile)：\(label.name)"
     }
     // Follow only the controller's current selection, never infer from candidates.
     func selectedNode(_ group: String, ai: Bool = false) -> String? {
         guard state?.active == true, state?.ready == true, let updated = parseTime(state?.updatedAt), abs(updated.timeIntervalSinceNow) < 15 else { return nil }
-        if state?.mode == "fallback" { return state?.upstream?.isEmpty == false ? "FALLBACK-33210" : nil }
+        if state?.mode == "fallback" { return state?.upstream?.isEmpty == false ? "FALLBACK-LOCAL" : nil }
         guard state?.mode == "primary" else { return nil }
         // Probe health is independent of the controller's actual selected route.
         // Health describes probe results, not which route the controller selected.
@@ -1781,7 +1794,7 @@ enum StatsWindow: Int, CaseIterable {
                 guard let next = info.now, !next.isEmpty else { return nil }
                 current = next
             } else {
-                guard current == "FALLBACK-33210" || nodeNames.contains(current) else { return nil }
+                guard current == "FALLBACK-LOCAL" || nodeNames.contains(current) else { return nil }
                 return current
             }
         }
@@ -2023,7 +2036,7 @@ enum StatsWindow: Int, CaseIterable {
                 let result: Result<StrategyConfig, Error> = Result {
                     if let error { throw error }
                     guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), let data else {
-                        throw NSError(domain: "srhop", code: 1, userInfo: [NSLocalizedDescriptionKey: "策略接口未返回成功状态"])
+                        throw NSError(domain: "clashhub", code: 1, userInfo: [NSLocalizedDescriptionKey: "策略接口未返回成功状态"])
                     }
                     return try JSONDecoder().decode(StrategyConfig.self, from: data)
                 }
@@ -2063,7 +2076,7 @@ enum StatsWindow: Int, CaseIterable {
                 let result: Result<StrategyConfig, Error> = Result {
                     if let error { throw error }
                     guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), let data else {
-                        throw NSError(domain: "srhop", code: (response as? HTTPURLResponse)?.statusCode ?? 1, userInfo: [NSLocalizedDescriptionKey: "策略接口返回 HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)"])
+                        throw NSError(domain: "clashhub", code: (response as? HTTPURLResponse)?.statusCode ?? 1, userInfo: [NSLocalizedDescriptionKey: "策略接口返回 HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)"])
                     }
                     return try JSONDecoder().decode(StrategyConfig.self, from: data)
                 }
@@ -2378,10 +2391,10 @@ struct NodesView: View {
                 Surface {
                     HStack {
                         Text(model.fallbackRouteLabel).frame(maxWidth: .infinity, alignment: .leading)
-                        if normal == "FALLBACK-33210" { RouteBadge(text: "普通流量", color: .blue) }
-                        if ai == "FALLBACK-33210" { RouteBadge(text: "AI流量", color: .purple) }
-                        if model.proxies["FALLBACK-33210"] != nil {
-                            let status = model.nodeStatus("FALLBACK-33210")
+                        if normal == "FALLBACK-LOCAL" { RouteBadge(text: "普通流量", color: .blue) }
+                        if ai == "FALLBACK-LOCAL" { RouteBadge(text: "AI流量", color: .purple) }
+                        if model.proxies["FALLBACK-LOCAL"] != nil {
+                            let status = model.nodeStatus("FALLBACK-LOCAL")
                             Text(status.0).font(InterfaceType.detail.monospacedDigit()).foregroundStyle(status.1).frame(width: 90, alignment: .trailing)
                         } else {
                             Text("状态未知").font(InterfaceType.detail).foregroundStyle(.secondary).frame(width: 90, alignment: .trailing)
@@ -2486,7 +2499,7 @@ struct NodesView: View {
                 Text("选择器：" + (info?.selected.map(model.displayName) ?? "未知"))
                     .font(InterfaceType.detail).foregroundStyle(.secondary).textSelection(.enabled)
             }
-            if name == "FALLBACK-33210", model.state?.mode == "fallback", info?.mode == "manual" || info?.desiredMode == "manual" {
+            if name == "FALLBACK-LOCAL", model.state?.mode == "fallback", info?.mode == "manual" || info?.desiredMode == "manual" {
                 Text("当前处于备用线路，手动偏好尚未用于实际线路。")
                     .font(InterfaceType.detail).foregroundStyle(.orange)
             }

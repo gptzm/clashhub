@@ -12,11 +12,17 @@ secrets/
 # Local builds and backups
 /srhop
 /srhop-autostart
+/clashhub
+/clashhub-autostart
 /srhop.before-*
 /srhop.backup-*
 /srhop.pre-*
 /srhop-autostart.before-*
 /srhop-autostart.pre-*
+/clashhub.before-*
+/clashhub.pre-*
+/clashhub-autostart.before-*
+/clashhub-autostart.pre-*
 /deploy-backup-*/
 *.app/
 *.dSYM/
