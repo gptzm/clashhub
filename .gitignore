@@ -1,0 +1,41 @@
+# Local credentials, subscription payloads, and runtime data
+tools/
+tools/sr_urls.txt
+subscriptions/
+secrets/
+*.pem
+*.key
+*.p12
+.env
+.env.*
+
+# Local builds and backups
+/srhop
+/srhop-autostart
+/srhop.before-*
+/srhop.backup-*
+/srhop.pre-*
+/srhop-autostart.before-*
+/srhop-autostart.pre-*
+/deploy-backup-*/
+*.app/
+*.dSYM/
+*.test
+
+# Legacy Python supervisor, superseded by the Go daemon
+/srhop.py
+# Prototype that rewrote the FlClash profile; superseded by gen_config.py
+/optimize_flclash.py
+
+# Python and editor artifacts
+__pycache__/
+*.py[cod]
+.venv/
+.DS_Store
+
+# Distribution artifacts
+/dist/
+
+# GUI build output
+/gui/ClashHub
+/gui/ClashHub.app
