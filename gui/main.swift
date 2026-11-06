@@ -439,6 +439,7 @@ enum StatsWindow: Int, CaseIterable {
     private var trafficByNode: [String: NodeTrafficEntry] = [:]
     private var readingNodeTraffic = false
     @Published var menuP95: UInt64?
+    @Published private(set) var menuTrafficTotals: TrafficTotals?
     @Published var uploadRate: Double?
     @Published var downloadRate: Double?
     @Published var routingMode: RoutingMode?
@@ -1200,6 +1201,7 @@ enum StatsWindow: Int, CaseIterable {
                 guard let self else { return }
                 let p95 = (result?.p95Samples ?? 0) > 0 ? result?.p95Upper : nil
                 if self.menuP95 != p95 { self.menuP95 = p95 }
+                self.menuTrafficTotals = result?.trafficTotals
                 if let totals = result?.trafficTotals, let started = result?.processStartedAt, !started.isEmpty {
                     let sample = TrafficSample(started: started, upload: totals.upload, download: totals.download, time: now)
                     let rates = self.trafficSample.flatMap { sample.rate(since: $0) }
@@ -2184,9 +2186,9 @@ struct NodesView: View {
                                     Text(model.proxyStatus).font(.system(size: 14, weight: .medium))
                                     Text(modeLabel(model.routingMode?.actualMode ?? "rule")).font(InterfaceType.detail).foregroundStyle(.secondary)
                                 }
-                                Text(normal.map(model.displayName) ?? "未选择节点")
-                                    .font(.system(size: 20, weight: .semibold)).lineLimit(1).truncationMode(.middle)
-                                Text("普通流量出口 · \(model.routeRateText("normal"))").font(InterfaceType.detail).foregroundStyle(.secondary)
+                                Text("ClashHub 代理")
+                                    .font(.system(size: 20, weight: .semibold))
+                                Text("普通流量与 AI 流量独立选路；节点详情见下方当前线路").font(InterfaceType.detail).foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 10)
                             Button {
@@ -2206,7 +2208,7 @@ struct NodesView: View {
                                 .font(InterfaceType.label).foregroundStyle(.secondary)
                             Text(rateText(model.uploadRate)).font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
                                 .lineLimit(1).minimumScaleFactor(0.6)
-                            Text("累计 \(bytes(model.stats?.trafficTotals?.upload))").font(InterfaceType.detail).foregroundStyle(.secondary)
+                            Text("累计 \(bytes(model.menuTrafficTotals?.upload))").font(InterfaceType.detail).foregroundStyle(.secondary)
                         }
                     }.frame(width: 170)
                     Surface {
@@ -2215,7 +2217,7 @@ struct NodesView: View {
                                 .font(InterfaceType.label).foregroundStyle(.secondary)
                             Text(rateText(model.downloadRate)).font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
                                 .lineLimit(1).minimumScaleFactor(0.6)
-                            Text("累计 \(bytes(model.stats?.trafficTotals?.download))").font(InterfaceType.detail).foregroundStyle(.secondary)
+                            Text("累计 \(bytes(model.menuTrafficTotals?.download))").font(InterfaceType.detail).foregroundStyle(.secondary)
                         }
                     }.frame(width: 170)
                 }
