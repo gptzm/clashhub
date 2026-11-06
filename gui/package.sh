@@ -18,7 +18,7 @@ echo "==> build ClashHub.app"
 ./build.sh "$stage" >/dev/null
 
 echo "==> embed daemon"
-(cd "$root" && go build -o "$stage/ClashHub.app/Contents/Resources/srhop" .)
+(cd "$root" && go build -o "$stage/ClashHub.app/Contents/Resources/srhop" ./cmd/srhop)
 cp "$root/gen_config.py" "$stage/ClashHub.app/Contents/Resources/gen_config.py"
 chmod +x "$stage/ClashHub.app/Contents/Resources/srhop"
 # Re-sign after adding executables to the bundle.

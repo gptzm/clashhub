@@ -4,6 +4,8 @@
 
 A macOS **region-specific node aggregator** and routing supervisor with a menu-bar console, **ClashHub**.
 
+> **Platform: macOS 14+ only; there is no Windows or Linux build.** The daemon relies on macOS system-proxy and network-service APIs, and the GUI is SwiftUI.
+
 ClashHub merges nodes from multiple Clash/FlClash profiles into one pool (Japan by default), selects a node by source priority and measured health, and splits traffic into two independent routes:
 
 - **Ordinary traffic** (`主代理` selector internally): everything except the configured AI domains
@@ -98,7 +100,7 @@ apps / browsers
 
 ```bash
 git clone https://github.com/gptzm/clashhub.git && cd clashhub
-go build -o srhop .
+go build -o srhop ./cmd/srhop
 
 ./srhop on       # take over the system proxy and start the daemon
 ./srhop status   # mode, upstream, probe latency
@@ -124,7 +126,7 @@ Other commands:
 
 ```bash
 # build the daemon in the repository root first; build.sh embeds it in the app
-go build -o srhop .
+go build -o srhop ./cmd/srhop
 
 cd gui
 ./build.sh                    # builds gui/ClashHub.app
@@ -219,16 +221,16 @@ Key files:
 
 | File | Responsibility |
 | --- | --- |
-| `main.go` | CLI entry and subcommands |
-| `app.go` | Daemon lifecycle, system proxy takeover/restore |
-| `engine.go` | mihomo config generation, validation, hot reload |
+| `cmd/srhop/main.go` | CLI entry and subcommands |
+| `cmd/srhop/app.go` | Daemon lifecycle, system proxy takeover/restore |
+| `cmd/srhop/engine.go` | mihomo config generation, validation, hot reload |
 | `gen_config.py` | Build mihomo config from source YAML |
-| `node_health.go` | Probing, health decisions, selection |
-| `node_selection.go` | Selector operations and local API |
-| `node_diagnostics.go` | Diagnostic snapshots and manual scans |
-| `node_traffic_service.go` | Per-node traffic sampling |
-| `source_runtime.go` / `source_discovery.go` | Source fetching, caching and discovery |
-| `route_traffic.go` | Ordinary vs. AI byte accounting |
+| `cmd/srhop/node_health.go` | Probing, health decisions, selection |
+| `cmd/srhop/node_selection.go` | Selector operations and local API |
+| `cmd/srhop/node_diagnostics.go` | Diagnostic snapshots and manual scans |
+| `cmd/srhop/node_traffic_service.go` | Per-node traffic sampling |
+| `cmd/srhop/source_runtime.go` / `source_discovery.go` | Source fetching, caching and discovery |
+| `cmd/srhop/route_traffic.go` | Ordinary vs. AI byte accounting |
 | `gui/main.swift` | ClashHub menu-bar app |
 
 ## Recommended providers

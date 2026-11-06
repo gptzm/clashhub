@@ -4,6 +4,8 @@
 
 macOS 上的**指定地区节点聚合**与选路守护进程，附带菜单栏控制台 **ClashHub**。
 
+> **平台说明：目前仅支持 macOS 14 及以上，不提供 Windows / Linux 版本。** 守护进程依赖 macOS 的系统代理与网络服务接口，GUI 使用 SwiftUI。
+
 它把多个 Clash / FlClash 配置里符合地区条件的节点（默认日本）聚合成一个代理池，按来源优先级和节点健康度自动选路，同时把流量拆成两条互不干扰的通道：
 
 - **普通流量**（内部 `主代理` 选择器）：除 AI 域名外的所有流量
@@ -98,7 +100,7 @@ macOS 上的**指定地区节点聚合**与选路守护进程，附带菜单栏�
 
 ```bash
 git clone https://github.com/gptzm/clashhub.git && cd clashhub
-go build -o srhop .
+go build -o srhop ./cmd/srhop
 
 ./srhop on       # 接管系统代理并启动守护进程
 ./srhop status   # 查看当前模式、上游、探测延迟
@@ -124,7 +126,7 @@ go build -o srhop .
 
 ```bash
 # 先在仓库根目录构建守护进程；build.sh 会把它一起打进 app
-go build -o srhop .
+go build -o srhop ./cmd/srhop
 
 cd gui
 ./build.sh                    # 生成 gui/ClashHub.app
@@ -219,16 +221,16 @@ cd gui && ./build.sh /tmp/check  # GUI 构建检查
 
 | 文件 | 职责 |
 | --- | --- |
-| `main.go` | CLI 入口与子命令 |
-| `app.go` | 守护进程生命周期、系统代理接管与恢复 |
-| `engine.go` | mihomo 配置生成、校验、热加载 |
+| `cmd/srhop/main.go` | CLI 入口与子命令 |
+| `cmd/srhop/app.go` | 守护进程生命周期、系统代理接管与恢复 |
+| `cmd/srhop/engine.go` | mihomo 配置生成、校验、热加载 |
 | `gen_config.py` | 从来源 YAML 生成 mihomo 配置 |
-| `node_health.go` | 节点探测、健康判定、选路 |
-| `node_selection.go` | 选择器操作与本地 API |
-| `node_diagnostics.go` | 诊断快照与手动扫描 |
-| `node_traffic_service.go` | 节点流量采样 |
-| `source_runtime.go` / `source_discovery.go` | 来源拉取、缓存与自动发现 |
-| `route_traffic.go` | 普通流量 / AI 流量字节拆分 |
+| `cmd/srhop/node_health.go` | 节点探测、健康判定、选路 |
+| `cmd/srhop/node_selection.go` | 选择器操作与本地 API |
+| `cmd/srhop/node_diagnostics.go` | 诊断快照与手动扫描 |
+| `cmd/srhop/node_traffic_service.go` | 节点流量采样 |
+| `cmd/srhop/source_runtime.go` / `source_discovery.go` | 来源拉取、缓存与自动发现 |
+| `cmd/srhop/route_traffic.go` | 普通流量 / AI 流量字节拆分 |
 | `gui/main.swift` | ClashHub 菜单栏应用 |
 
 ## 推荐机场
