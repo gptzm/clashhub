@@ -1,14 +1,14 @@
 package main
 
 import (
-	"context"
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -153,81 +153,94 @@ func mergeDirectUserinfo(p *subscriptionProfile, path string) {
 	p.RefreshSource = "direct"
 }
 
-// Only these four columns are ever selected; the database is opened read-only.
-// The helper emits a strictly constructed object, never raw records or errors.
-const subscriptionReader = `import sys, sqlite3, json, pathlib
-try:
- db=sqlite3.connect(pathlib.Path(sys.argv[1]).as_uri()+'?mode=ro', uri=True, timeout=0.2)
- try:
-  row=db.execute('SELECT id, label, subscription_info, last_update_date FROM profiles WHERE id = ?', (int(sys.argv[2]),)).fetchone()
- finally: db.close()
- if row is None: sys.exit(1)
- def number(v):
-  return v if type(v) is int and 0 <= v <= 9223372036854775807 else None
- try:
-  info=json.loads(row[2]) if row[2] is not None else {}
-  if not isinstance(info,dict): info={}
- except (ValueError,TypeError): info={}
- name=row[1] if isinstance(row[1],str) and len(row[1]) <= 256 else None
- if name and ('://' in name or '?' in name or '@' in name or '\n' in name or '\r' in name): name=None
- print(json.dumps({'name':name, 'subscription_info':{k:number(info.get(k)) for k in ('upload','download','total','expire')}, 'last_update_date':number(row[3])}))
-except Exception: sys.exit(1)`
-
 func readSubscription(t subscriptionTarget) subscriptionProfile {
 	p := unknownSubscription(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "python3", "-c", subscriptionReader, t.db, t.id).Output()
-	if err != nil || len(out) > 4096 {
+	db, err := openSQLiteReadOnly(t.db)
+	if err != nil {
 		return p
 	}
-	var data struct {
-		Name *string          `json:"name"`
-		Info subscriptionInfo `json:"subscription_info"`
-		Last *int64           `json:"last_update_date"`
-	}
-	if json.Unmarshal(out, &data) != nil {
+	defer db.Close()
+	var id int64
+	var label sql.NullString
+	var raw sql.NullString
+	var last sql.NullInt64
+	if err := db.QueryRow("SELECT id, label, subscription_info, last_update_date FROM profiles WHERE id = ?", t.id).Scan(&id, &label, &raw, &last); err != nil {
 		return p
 	}
-	p.Name, p.SubscriptionInfo, p.LastUpdateDate, p.Status = data.Name, data.Info, data.Last, "ok"
+	if label.Valid {
+		name := label.String
+		if len(name) <= 256 && !strings.Contains(name, "://") && !strings.ContainsAny(name, "?@\n\r") {
+			p.Name = &name
+		}
+	}
+	p.SubscriptionInfo = parseSubscriptionInfo(raw.String)
+	if last.Valid && last.Int64 >= 0 {
+		v := last.Int64
+		p.LastUpdateDate = &v
+	}
+	p.Status = "ok"
 	return p
 }
 
-// Discover existing 玖壹 profiles independently of node-generation sources.
-// Never select URL or secret columns, or emit the raw subscription JSON.
-const jiuyiDiscoveryReader = `import sys, sqlite3, json, pathlib
-try:
- db=sqlite3.connect(pathlib.Path(sys.argv[1]).as_uri()+'?mode=ro', uri=True, timeout=0.2)
- try:
-  rows=db.execute('SELECT id, label, subscription_info, last_update_date FROM profiles ORDER BY id LIMIT 10001').fetchall()
- finally: db.close()
- if len(rows)>10000: sys.exit(1)
- def number(v):
-  return v if type(v) is int and 0 <= v <= 9223372036854775807 else None
- result=[]
- for ident,name,raw,last in rows:
-  if number(ident) is None: continue
-  try:
-   info=json.loads(raw) if raw is not None else {}
-   if not isinstance(info,dict): info={}
-  except (ValueError,TypeError): info={}
-  if not isinstance(name,str) or len(name)>256 or any(s in name for s in ('://','?','@','\n','\r')): name=None
-  result.append({'source':'jiuyi','id':str(ident),'name':name,'subscription_info':{k:number(info.get(k)) for k in ('upload','download','total','expire')},'last_update_date':number(last),'status':'ok'})
- print(json.dumps(result))
-except Exception: sys.exit(1)`
+func parseSubscriptionInfo(raw string) subscriptionInfo {
+	var info subscriptionInfo
+	if strings.TrimSpace(raw) == "" {
+		return info
+	}
+	var fields map[string]any
+	if json.Unmarshal([]byte(raw), &fields) != nil {
+		return info
+	}
+	num := func(key string) *int64 {
+		v, ok := fields[key].(float64)
+		if !ok || v < 0 || v > 9223372036854775807 {
+			return nil
+		}
+		n := int64(v)
+		return &n
+	}
+	info.Upload = num("upload")
+	info.Download = num("download")
+	info.Total = num("total")
+	info.Expire = num("expire")
+	return info
+}
 
 func discoverJiuyiSubscriptions(db string) ([]subscriptionProfile, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "python3", "-c", jiuyiDiscoveryReader, db).Output()
+	dbh, err := openSQLiteReadOnly(db)
 	if err != nil {
 		return nil, err
 	}
-	var profiles []subscriptionProfile
-	if err := json.Unmarshal(out, &profiles); err != nil {
+	defer dbh.Close()
+	rows, err := dbh.Query("SELECT id, label, subscription_info, last_update_date FROM profiles ORDER BY id LIMIT 10001")
+	if err != nil {
 		return nil, err
 	}
-	return profiles, nil
+	defer rows.Close()
+	var out []subscriptionProfile
+	for rows.Next() {
+		var id int64
+		var label sql.NullString
+		var raw sql.NullString
+		var last sql.NullInt64
+		if err := rows.Scan(&id, &label, &raw, &last); err != nil {
+			continue
+		}
+		if id < 0 {
+			continue
+		}
+		p := subscriptionProfile{Source: "jiuyi", ID: strconv.FormatInt(id, 10), SubscriptionInfo: parseSubscriptionInfo(raw.String), Status: "ok"}
+		if label.Valid && len(label.String) <= 256 && !strings.Contains(label.String, "://") && !strings.ContainsAny(label.String, "?@\n\r") {
+			name := label.String
+			p.Name = &name
+		}
+		if last.Valid && last.Int64 >= 0 {
+			v := last.Int64
+			p.LastUpdateDate = &v
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
 }
 
 func (c *subscriptionCache) serveHTTP(w http.ResponseWriter, r *http.Request) {

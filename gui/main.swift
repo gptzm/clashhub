@@ -740,10 +740,6 @@ enum StatsWindow: Int, CaseIterable {
         let executable = (bundled.map { FileManager.default.isExecutableFile(atPath: $0.path) } == true)
             ? bundled! : home.appendingPathComponent("clashhub/clashhub")
         var environment = ProcessInfo.processInfo.environment
-        if let script = Bundle.main.resourceURL?.appendingPathComponent("gen_config.py"),
-           FileManager.default.fileExists(atPath: script.path) {
-            environment["CLASHHUB_GEN_CONFIG"] = script.path
-        }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let process = Process(); process.executableURL = executable; process.arguments = [command]
             process.environment = environment

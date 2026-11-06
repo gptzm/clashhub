@@ -211,14 +211,6 @@ func TestSourceHashesDetectSameTimestampAndMissing(t *testing.T) {
 	}
 }
 
-func TestGenScriptPathEnvOverride(t *testing.T) {
-	want := filepath.Join(t.TempDir(), "gen_config.py")
-	t.Setenv("CLASHHUB_GEN_CONFIG", want)
-	if got := genScriptPath(); got != want {
-		t.Fatalf("override ignored: %q", got)
-	}
-}
-
 func TestEngineBinaryResolution(t *testing.T) {
 	exe, err := os.Executable()
 	if err != nil {
@@ -235,15 +227,5 @@ func TestEngineBinaryResolution(t *testing.T) {
 	t.Setenv("PATH", dir)
 	if got := engineBinary(Config{EngineBin: "/nonexistent/mihomo"}); got != tool {
 		t.Fatalf("PATH fallback failed: %q", got)
-	}
-}
-
-func TestGenScriptPathStaysInHome(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	// The working directory contains a real gen_config.py; it must not be chosen.
-	want := filepath.Join(home, "clashhub", "gen_config.py")
-	if got := genScriptPath(); got != want {
-		t.Fatalf("got %q want %q", got, want)
 	}
 }

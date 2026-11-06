@@ -1,42 +1,43 @@
 package main
 
 import (
-	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
+
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
-	"time"
 )
 
-// flclashProfileReader returns the id -> label mapping of URL profiles.
-// Subscription URLs are deliberately not read here.
-const flclashProfileReader = `import sys, sqlite3, json, pathlib
-try:
- db=sqlite3.connect(pathlib.Path(sys.argv[1]).as_uri()+'?mode=ro', uri=True, timeout=0.2)
- try: rows=db.execute("SELECT id,label FROM profiles WHERE type='url' ORDER BY id LIMIT 10001").fetchall()
- finally: db.close()
- if len(rows)>10000: sys.exit(1)
- out={}
- for ident,label in rows:
-  if type(ident) is not int or ident<0: continue
-  out[str(ident)] = label if isinstance(label,str) and label.strip() else ""
- print(json.dumps(out))
-except Exception: sys.exit(1)`
-
 func readFlClashProfileLabels(db string) (map[string]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "python3", "-c", flclashProfileReader, db).Output()
-	if err != nil || len(out) > 1<<20 {
+	dbh, err := openSQLiteReadOnly(db)
+	if err != nil {
 		return nil, fmt.Errorf("discovery-failed")
 	}
-	var labels map[string]string
-	if json.Unmarshal(out, &labels) != nil {
+	defer dbh.Close()
+	rows, err := dbh.Query("SELECT id, label FROM profiles WHERE type='url' ORDER BY id LIMIT 10001")
+	if err != nil {
+		return nil, fmt.Errorf("discovery-failed")
+	}
+	defer rows.Close()
+	labels := map[string]string{}
+	for rows.Next() {
+		var id int64
+		var label sql.NullString
+		if err := rows.Scan(&id, &label); err != nil || id < 0 {
+			continue
+		}
+		if label.Valid && strings.TrimSpace(label.String) != "" {
+			labels[strconv.FormatInt(id, 10)] = label.String
+		} else {
+			labels[strconv.FormatInt(id, 10)] = ""
+		}
+	}
+	if rows.Err() != nil {
 		return nil, fmt.Errorf("discovery-failed")
 	}
 	return labels, nil

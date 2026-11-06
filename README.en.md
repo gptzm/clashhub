@@ -92,8 +92,7 @@ apps / browsers
 - macOS 14 or newer (the GUI is SwiftUI)
 - Xcode Command Line Tools (`swiftc`, needed to build the GUI)
 - [mihomo](https://github.com/MetaCubeX/mihomo): `brew install mihomo`
-- Python 3 with PyYAML (engine config generation): `python3 -m pip install pyyaml`
-- Go 1.24+ (build only)
+- Go 1.24+ (build only; config generation is built in — no Python/PyYAML required)
 - Optional: Python `cryptography` when using the local encrypted-profile importer
 
 ### Build and run
@@ -143,7 +142,7 @@ The app talks only to the loopback API on `127.0.0.1:33335` with a local token.
 # produces dist/ClashHub-<version>.dmg and dist/ClashHub-<version>.zip
 ```
 
-The bundle embeds the daemon and `gen_config.py`, so the installed ClashHub.app starts by double-click without a `~/clashhub` checkout. mihomo and Python/PyYAML remain runtime dependencies and are not bundled.
+The bundle embeds the daemon, so the installed ClashHub.app starts by double-click without a `~/clashhub` checkout. mihomo remains a runtime dependency and is not bundled. Engine config generation is implemented in Go; no Python/PyYAML is required.
 
 The package is ad-hoc signed. If Gatekeeper blocks the first launch, right-click → Open, or run:
 
@@ -212,8 +211,7 @@ Node priority can be adjusted per node in the GUI or through `/api/node-prioriti
 gofmt -l .
 go vet ./...
 go test ./...                    # unit and integration tests
-python3 test_gen_config.py       # config generator tests
-python3 gui/test_labels.py       # GUI text/decoding tests (needs Swift toolchain)
+python3 gui/test_labels.py       # GUI text/decoding tests (needs Swift toolchain, development only)
 cd gui && ./build.sh /tmp/check  # GUI build check
 ```
 
@@ -224,7 +222,7 @@ Key files:
 | `cmd/clashhub/main.go` | CLI entry and subcommands |
 | `cmd/clashhub/app.go` | Daemon lifecycle, system proxy takeover/restore |
 | `cmd/clashhub/engine.go` | mihomo config generation, validation, hot reload |
-| `gen_config.py` | Build mihomo config from source YAML |
+| `cmd/clashhub/generator.go` | Build mihomo config from source YAML (pure Go) |
 | `cmd/clashhub/node_health.go` | Probing, health decisions, selection |
 | `cmd/clashhub/node_selection.go` | Selector operations and local API |
 | `cmd/clashhub/node_diagnostics.go` | Diagnostic snapshots and manual scans |

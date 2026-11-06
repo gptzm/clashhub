@@ -4,7 +4,6 @@
 
 - macOS 14+
 - Go 1.24+
-- Python 3 + PyYAML
 - mihomo（`brew install mihomo`），用于集成测试与本地运行
 
 ## 提交前检查
@@ -13,7 +12,6 @@
 gofmt -l .            # 必须无输出
 go vet ./...
 go test ./...
-python3 test_gen_config.py                   # 改动生成器时执行
 python3 gui/test_labels.py                   # 改动 GUI 时执行
 cd gui && ./build.sh /tmp/clashhub-check     # 改动 GUI 时执行
 ```

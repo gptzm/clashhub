@@ -92,9 +92,8 @@ macOS 上的**指定地区节点聚合**与选路守护进程，附带菜单栏�
 - macOS 14 或更高（GUI 使用 SwiftUI）
 - Xcode Command Line Tools（`swiftc`，编译 GUI 时需要）
 - [mihomo](https://github.com/MetaCubeX/mihomo)：`brew install mihomo`
-- Python 3 与 PyYAML（生成引擎配置）：`python3 -m pip install pyyaml`
-- Go 1.24+（仅编译时需要）
-- 可选：使用本机加密配置导入时，另需 Python `cryptography`
+- Go 1.24+（仅编译时需要；配置生成已内置，不再需要 Python / PyYAML）
+- 可选：使用本机加密配置导入时，另行安装 Python `cryptography`
 
 ### 编译并运行
 
@@ -143,7 +142,7 @@ GUI 只通过本机 `127.0.0.1:33335` 的带 token API 与守护进程通信，�
 # 产物：dist/ClashHub-<版本>.dmg 和 dist/ClashHub-<版本>.zip
 ```
 
-安装包内嵌了守护进程与 `gen_config.py`，安装后的 ClashHub.app 可双击直接启动，不依赖 `~/clashhub` 目录。mihomo 与 Python/PyYAML 仍是运行依赖，不会被一起打包。
+安装包内嵌了守护进程，安装后的 ClashHub.app 可双击直接启动，不依赖 `~/clashhub` 目录。mihomo 仍是运行依赖，不会被打包。配置生成由 Go 内置实现完成，不需要 Python / PyYAML。
 
 安装包使用临时签名（ad-hoc）。首次启动如被 Gatekeeper 拦截，请右键 → 打开，或执行：
 
@@ -212,8 +211,7 @@ xattr -dr com.apple.quarantine /Applications/ClashHub.app
 gofmt -l .
 go vet ./...
 go test ./...                    # 单元与集成测试
-python3 test_gen_config.py       # 配置生成器测试
-python3 gui/test_labels.py       # GUI 文案/解码测试（需要 Swift 工具链）
+python3 gui/test_labels.py       # GUI 文案/解码测试（需要 Swift 工具链，仅开发时）
 cd gui && ./build.sh /tmp/check  # GUI 构建检查
 ```
 
@@ -224,7 +222,7 @@ cd gui && ./build.sh /tmp/check  # GUI 构建检查
 | `cmd/clashhub/main.go` | CLI 入口与子命令 |
 | `cmd/clashhub/app.go` | 守护进程生命周期、系统代理接管与恢复 |
 | `cmd/clashhub/engine.go` | mihomo 配置生成、校验、热加载 |
-| `gen_config.py` | 从来源 YAML 生成 mihomo 配置 |
+| `cmd/clashhub/generator.go` | 从来源 YAML 生成 mihomo 配置（纯 Go） |
 | `cmd/clashhub/node_health.go` | 节点探测、健康判定、选路 |
 | `cmd/clashhub/node_selection.go` | 选择器操作与本地 API |
 | `cmd/clashhub/node_diagnostics.go` | 诊断快照与手动扫描 |

@@ -2,12 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
-	"reflect"
-	"strconv"
 	"testing"
 	"time"
 )
@@ -46,39 +41,21 @@ func TestWatcherDoesNotWriteAfterShutdownWhileWaiting(t *testing.T) {
 	}
 }
 
-func TestWatcherGeneratorPreservesProfilesAndCancels(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	if err := os.MkdirAll(filepath.Dir(genScriptPath()), 0700); err != nil {
-		t.Fatal(err)
-	}
-	output := filepath.Join(t.TempDir(), "profiles")
-	script := "import os,time,pathlib\npathlib.Path(" + strconv.Quote(output) + ").write_text(os.environ.get('CLASHHUB_SOURCE_PROFILES','missing'))\ntime.sleep(30)\n"
-	if err := os.WriteFile(genScriptPath(), []byte(script), 0600); err != nil {
-		t.Fatal(err)
-	}
+func TestWatcherGeneratorCancels(t *testing.T) {
 	a := &App{stopCh: make(chan struct{})}
+	started := make(chan struct{})
 	done := make(chan error, 1)
-	profiles := []string{"/tmp/custom profile.yaml", "/tmp/second.yaml"}
 	go func() {
-		done <- a.watcherEngineUpdateContext(func(ctx context.Context) error { return runGeneratorWithSourcesContext(ctx, profiles) })
+		done <- a.watcherEngineUpdateContext(func(ctx context.Context) error {
+			close(started)
+			<-ctx.Done()
+			return ctx.Err()
+		})
 	}()
-	deadline := time.Now().Add(3 * time.Second)
-	var data []byte
-	for {
-		data, _ = os.ReadFile(output)
-		if len(data) > 0 {
-			break
-		}
-		if time.Now().After(deadline) {
-			close(a.stopCh)
-			t.Fatal("generator not started")
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	var got []string
-	if json.Unmarshal(data, &got) != nil || !reflect.DeepEqual(got, profiles) {
-		close(a.stopCh)
-		t.Fatalf("profiles changed: %q", data)
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("generator did not start")
 	}
 	close(a.stopCh)
 	select {

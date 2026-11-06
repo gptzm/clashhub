@@ -55,24 +55,6 @@ func engineLogPath() string {
 	return filepath.Join(home, "Library", "Logs", "mihomo.log")
 }
 
-// genScriptPath locates gen_config.py without assuming a fixed install
-// directory: an explicit override wins, then the directory holding the running
-// binary (the normal install layout), then the historical ~/clashhub checkout.
-// The current directory is deliberately not consulted: tests run from the
-// source tree and must never overwrite the shipped generator.
-func genScriptPath() string {
-	if p := strings.TrimSpace(os.Getenv("CLASHHUB_GEN_CONFIG")); p != "" {
-		return p
-	}
-	if exe, err := os.Executable(); err == nil {
-		p := filepath.Join(filepath.Dir(exe), "gen_config.py")
-		if _, err := os.Stat(p); err == nil {
-			return p
-		}
-	}
-	return filepath.Join(userHome(), "clashhub", "gen_config.py")
-}
-
 func runGenerator() error { return runGeneratorWithSources(nil) }
 
 func runGeneratorWithSources(paths []string) error {
@@ -80,39 +62,12 @@ func runGeneratorWithSources(paths []string) error {
 }
 
 func runGeneratorWithSourcesContext(ctx context.Context, paths []string) error {
-	script := genScriptPath()
-	if _, err := os.Stat(script); err != nil {
-		return fmt.Errorf("missing generator %s: %w", script, err)
-	}
-	pythonPath, err := exec.LookPath("python3")
+	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
-	cmd, err := office91PythonCommand(ctx, pythonPath, script)
-	if err != nil {
-		return err
-	}
-	if paths != nil {
-		encoded, err := json.Marshal(paths)
-		if err != nil {
-			return err
-		}
-		cmd.Env = append(os.Environ(), "CLASHHUB_SOURCE_PROFILES="+string(encoded))
-	}
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		return fmt.Errorf("gen_config: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "{") {
-			return nil
-		}
-	}
-	return nil
+	_, err = buildEngineConfig(ctx, cfg, paths)
+	return err
 }
 
 func engineSecret() string {

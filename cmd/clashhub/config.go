@@ -34,7 +34,7 @@ const (
 )
 
 // Stable identifiers for the standard source layout. These are part of the
-// config contract shared with gen_config.py and the runtime: group names
+// config contract shared with the Go generator and the runtime: group names
 // (JP-<id>), cache paths (sources/<id>.yaml) and labels metadata all key off
 // them, so they must never change for an existing deployment.
 const (

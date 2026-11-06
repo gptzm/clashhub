@@ -26,6 +26,7 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -35,7 +36,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -75,7 +75,7 @@ func signedSubscriptionHeaders(key []byte, component, body string, now func() ti
 
 func sourcesCacheDir() string { return filepath.Join(appSupportDir(), "sources") }
 
-// subscriptionYAMLPath is the node cache consumed by gen_config.py
+// subscriptionYAMLPath is the node cache consumed by the Go generator
 // (~/Library/Application Support/ClashHub/sources/<id>.yaml).
 func subscriptionYAMLPath(sourceID string) string {
 	return filepath.Join(sourcesCacheDir(), sourceID+".yaml")
@@ -113,138 +113,53 @@ func flclashDatabasePath() string {
 	return filepath.Join(userHome(), "Library", "Application Support", "com.follow.clash", "database.sqlite")
 }
 
-// jiuyiURLReader extracts the subscription URL from 玖壹's database. The
-// database is opened with mode=ro&immutable=1 (never created or written) and
-// only the url column of the lowest-id profile row is read. Exit codes are
-// stable classes; no URL content ever reaches stderr.
-const jiuyiURLReader = `import sys, sqlite3, pathlib
-try:
-    path = pathlib.Path(sys.argv[1])
-    if not path.is_file():
-        sys.exit(3)
-    db = sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=0.2)
-    try:
-        row = db.execute('SELECT url FROM profiles ORDER BY id LIMIT 1').fetchone()
-    finally:
-        db.close()
-    if row is None or not isinstance(row[0], str):
-        sys.exit(1)
-    url = row[0].strip()
-    if not url.startswith(('http://', 'https://')) or len(url) > 2048 or any(c.isspace() for c in url):
-        sys.exit(2)
-    sys.stdout.write(url)
-except Exception:
-    sys.exit(1)`
-
-// clashStoreReader parses a Clash YAML payload from stdin and atomically
-// replaces the node cache at argv[1] with a 0600 file holding the extracted
-// proxies and rules. Payload content is never echoed; exit codes classify the
-// failure (2 = not Clash format, 4 = no usable nodes, 5 = parse error).
-const clashStoreReader = `import sys, os, json, tempfile
-import yaml
-try:
-    conf = yaml.safe_load(sys.stdin.buffer.read().decode('utf-8', 'replace'))
-    if not isinstance(conf, dict) or not isinstance(conf.get('proxies'), list):
-        sys.exit(2)
-    kept = [p for p in conf['proxies'] if isinstance(p, dict)
-            and isinstance(p.get('name'), str) and p.get('name')
-            and isinstance(p.get('server'), str) and p.get('server')
-            and p.get('port')
-            and str(p.get('type', '')).lower() not in ('subscribe', 'direct', 'reject')]
-    if not kept:
-        sys.exit(4)
-    rules = conf.get('rules')
-    rules = [r for r in rules if isinstance(r, str)] if isinstance(rules, list) else []
-    fd, tmp = tempfile.mkstemp(prefix='.sub-', dir=os.path.dirname(os.path.abspath(sys.argv[1])))
-    try:
-        with os.fdopen(fd, 'w', encoding='utf-8') as f:
-            yaml.safe_dump({'proxies': kept, 'rules': rules}, f, allow_unicode=True, sort_keys=False, width=10000)
-        os.chmod(tmp, 0o600)
-        os.replace(tmp, sys.argv[1])
-    finally:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-    print(json.dumps({'proxies': len(kept), 'rules': len(rules)}))
-except SystemExit:
-    raise
-except Exception:
-    sys.exit(5)`
-
 // readJiuyiSubscriptionURL returns the subscription URL and a stable error
 // class ("db-missing", "no-profile", "invalid-url", "no-url"). The URL is
 // returned in memory only.
 func readJiuyiSubscriptionURL(dbPath string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "python3", "-c", jiuyiURLReader, dbPath).Output()
+	db, err := openSQLiteReadOnly(dbPath)
 	if err != nil {
-		var ee *exec.ExitError
-		switch {
-		case errors.As(err, &ee) && ee.ExitCode() == 3:
-			return "", fmt.Errorf("db-missing")
-		case errors.As(err, &ee) && ee.ExitCode() == 2:
-			return "", fmt.Errorf("invalid-url")
-		case errors.As(err, &ee) && ee.ExitCode() == 1:
-			return "", fmt.Errorf("no-profile")
-		}
-		return "", fmt.Errorf("no-url")
+		return "", fmt.Errorf("db-missing")
 	}
-	u := strings.TrimSpace(string(out))
-	if u == "" || len(u) > maxSubscriptionURL || strings.ContainsAny(u, " \t\r\n") {
+	defer db.Close()
+	row := db.QueryRow("SELECT url FROM profiles ORDER BY id LIMIT 1")
+	var raw sql.NullString
+	if err := row.Scan(&raw); err != nil {
+		return "", fmt.Errorf("no-profile")
+	}
+	u := strings.TrimSpace(raw.String)
+	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+		return "", fmt.Errorf("invalid-url")
+	}
+	if len(u) > maxSubscriptionURL || strings.ContainsAny(u, " \t\r\n") {
 		return "", fmt.Errorf("invalid-url")
 	}
 	return u, nil
 }
 
-// flclashURLReader extracts the subscription URL of every FlClash profile from
-// FlClash's database. The database is opened with mode=ro&immutable=1 (never
-// created or written) and only the id and url columns are read; rows without a
-// plausible http(s) URL are skipped. The result is a JSON object mapping the
-// profile id to its subscription URL; no URL content reaches stderr.
-const flclashURLReader = `import sys, sqlite3, json, pathlib
-try:
-    path = pathlib.Path(sys.argv[1])
-    if not path.is_file():
-        sys.exit(3)
-    db = sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=0.2)
-    try:
-        rows = db.execute('SELECT id, url FROM profiles').fetchall()
-    finally:
-        db.close()
-    out = {}
-    for ident, url in rows:
-        if not isinstance(ident, int) or not isinstance(url, str):
-            continue
-        u = url.strip()
-        if not u.startswith(('http://', 'https://')) or len(u) > 2048 or any(c.isspace() for c in u):
-            continue
-        out[str(ident)] = u
-    sys.stdout.write(json.dumps(out))
-except Exception:
-    sys.exit(1)`
-
-// flclashProfileIDs discovers profile IDs without exposing subscription URLs.
-const flclashProfileIDReader = `import sys, sqlite3, json, pathlib
-try:
- db=sqlite3.connect(pathlib.Path(sys.argv[1]).as_uri()+'?mode=ro', uri=True, timeout=0.2)
- try: rows=db.execute('SELECT id FROM profiles ORDER BY id LIMIT 10001').fetchall()
- finally: db.close()
- if len(rows)>10000: sys.exit(1)
- print(json.dumps([str(r[0]) for r in rows if type(r[0]) is int and r[0]>=0]))
-except Exception: sys.exit(1)`
-
 func discoverFlClashIDs(db string) ([]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "python3", "-c", flclashProfileIDReader, db).Output()
-	if err != nil || len(out) > 300000 {
+	dbh, err := openSQLiteReadOnly(db)
+	if err != nil {
 		return nil, fmt.Errorf("discovery-failed")
 	}
-	var ids []string
-	if json.Unmarshal(out, &ids) != nil {
+	defer dbh.Close()
+	rows, err := dbh.Query("SELECT id FROM profiles ORDER BY id LIMIT 10001")
+	if err != nil {
 		return nil, fmt.Errorf("discovery-failed")
 	}
-	return ids, nil
+	defer rows.Close()
+	ids := make([]string, 0, 64)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil || id < 0 {
+			continue
+		}
+		ids = append(ids, strconv.FormatInt(id, 10))
+	}
+	if len(ids) > 10000 {
+		return nil, fmt.Errorf("discovery-failed")
+	}
+	return ids, rows.Err()
 }
 
 // readFlClashProfileURLs returns the profile id -> subscription URL mapping
@@ -252,27 +167,34 @@ func discoverFlClashIDs(db string) ([]string, error) {
 // database here), "no-url" (unreadable, no table, or no valid mapping). The
 // URLs are returned in memory only.
 func readFlClashProfileURLs(dbPath string) (map[string]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "python3", "-c", flclashURLReader, dbPath).Output()
+	db, err := openSQLiteReadOnly(dbPath)
 	if err != nil {
-		var ee *exec.ExitError
-		if errors.As(err, &ee) && ee.ExitCode() == 3 {
-			return nil, fmt.Errorf("db-missing")
+		return nil, fmt.Errorf("db-missing")
+	}
+	defer db.Close()
+	rows, err := db.Query("SELECT id, url FROM profiles")
+	if err != nil {
+		return nil, fmt.Errorf("no-url")
+	}
+	defer rows.Close()
+	urls := map[string]string{}
+	for rows.Next() {
+		var id int64
+		var raw sql.NullString
+		if err := rows.Scan(&id, &raw); err != nil {
+			continue
 		}
-		return nil, fmt.Errorf("no-url")
-	}
-	if len(out) > 1<<20 {
-		return nil, fmt.Errorf("no-url")
-	}
-	var urls map[string]string
-	if json.Unmarshal(out, &urls) != nil {
-		return nil, fmt.Errorf("no-url")
-	}
-	for id, u := range urls {
-		if id == "" || u == "" || len(u) > maxSubscriptionURL || strings.ContainsAny(u, " \t\r\n") {
-			delete(urls, id)
+		u := strings.TrimSpace(raw.String)
+		if u == "" || len(u) > maxSubscriptionURL || strings.ContainsAny(u, " \t\r\n") {
+			continue
 		}
+		if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+			continue
+		}
+		urls[strconv.FormatInt(id, 10)] = u
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("no-url")
 	}
 	return urls, nil
 }
@@ -470,37 +392,9 @@ func sanitizeSubscriptionError(err error) string {
 	return "network"
 }
 
-// storeClashNodes runs the parser helper and returns the stored node counts.
+// storeClashNodes parses a Clash payload and stores the usable proxies/rules.
 func storeClashNodes(body []byte, dst string) (proxies, rules int, err error) {
-	if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
-		return 0, 0, err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "python3", "-c", clashStoreReader, dst)
-	cmd.Stdin = strings.NewReader(string(body))
-	out, err := cmd.Output()
-	if err != nil {
-		var ee *exec.ExitError
-		switch {
-		case errors.As(err, &ee) && ee.ExitCode() == 2:
-			return 0, 0, fmt.Errorf("not-clash")
-		case errors.As(err, &ee) && ee.ExitCode() == 4:
-			return 0, 0, fmt.Errorf("empty")
-		}
-		return 0, 0, fmt.Errorf("parse")
-	}
-	var res struct {
-		Proxies int `json:"proxies"`
-		Rules   int `json:"rules"`
-	}
-	if jsonErr := json.Unmarshal(out, &res); jsonErr != nil || res.Proxies == 0 {
-		return 0, 0, fmt.Errorf("parse")
-	}
-	if err := os.Chmod(dst, 0o600); err != nil {
-		return 0, 0, fmt.Errorf("store")
-	}
-	return res.Proxies, res.Rules, nil
+	return storeClashNodesYAML(body, dst)
 }
 
 // SubscriptionStatus is the externally visible state of one subscription

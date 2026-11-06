@@ -38,9 +38,8 @@ cp "$work/ClashHub" "$app/Contents/MacOS/ClashHub"
 chmod +x "$app/Contents/MacOS/ClashHub"
 
 # When a daemon build is present, bundle it so the app is self-contained.
-if [ -x ../clashhub ] && [ -f ../gen_config.py ]; then
+if [ -x ../clashhub ]; then
   cp ../clashhub "$app/Contents/Resources/clashhub"
-  cp ../gen_config.py "$app/Contents/Resources/gen_config.py"
   chmod +x "$app/Contents/Resources/clashhub"
 fi
 

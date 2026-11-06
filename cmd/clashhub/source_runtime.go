@@ -28,7 +28,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -481,59 +480,6 @@ func parseSubscriptionUserinfo(header string) (profileUserinfo, bool) {
 	return info, ok
 }
 
-// clashPayloadValidator parses a Clash YAML payload from stdin and reports the
-// usable node and rule counts without writing anything. Payload content is
-// never echoed; exit codes classify the failure (2 = not Clash format,
-// 4 = no usable nodes, 5 = parse error). The usable-node bar mirrors
-// clashStoreReader so a refreshed profile file can never be something
-// gen_config.py would choke on.
-const clashPayloadValidator = `import sys, json, yaml
-try:
-    conf = yaml.safe_load(sys.stdin.buffer.read().decode('utf-8', 'replace'))
-    if not isinstance(conf, dict) or not isinstance(conf.get('proxies'), list):
-        sys.exit(2)
-    kept = [p for p in conf['proxies'] if isinstance(p, dict)
-            and isinstance(p.get('name'), str) and p.get('name')
-            and isinstance(p.get('server'), str) and p.get('server')
-            and p.get('port')
-            and str(p.get('type', '')).lower() not in ('subscribe', 'direct', 'reject')]
-    if not kept:
-        sys.exit(4)
-    rules = conf.get('rules')
-    rules = [r for r in rules if isinstance(r, str)] if isinstance(rules, list) else []
-    print(json.dumps({'proxies': len(kept), 'rules': len(rules)}))
-except SystemExit:
-    raise
-except Exception:
-    sys.exit(5)`
-
-// validateClashPayload runs the parser helper on body and returns node counts.
-func validateClashPayload(body []byte) (proxies, rules int, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "python3", "-c", clashPayloadValidator)
-	cmd.Stdin = strings.NewReader(string(body))
-	out, err := cmd.Output()
-	if err != nil {
-		var ee *exec.ExitError
-		switch {
-		case errors.As(err, &ee) && ee.ExitCode() == 2:
-			return 0, 0, fmt.Errorf("not-clash")
-		case errors.As(err, &ee) && ee.ExitCode() == 4:
-			return 0, 0, fmt.Errorf("empty")
-		}
-		return 0, 0, fmt.Errorf("parse")
-	}
-	var res struct {
-		Proxies int `json:"proxies"`
-		Rules   int `json:"rules"`
-	}
-	if json.Unmarshal(out, &res) != nil || res.Proxies == 0 {
-		return 0, 0, fmt.Errorf("parse")
-	}
-	return res.Proxies, res.Rules, nil
-}
-
 // profileRefresher keeps one FlClash profile-type source current. It resolves
 // the subscription URL by profile id from FlClash's own database (read-only),
 // fetches it with a direct transport and validates the Clash payload.
@@ -899,17 +845,11 @@ func (a *App) withOffice91SourceTransaction(lifecycle, request context.Context, 
 }
 
 func runOffice91GeneratorContext(ctx context.Context) error {
-	pythonPath, err := exec.LookPath("python3")
+	cfg, err := loadConfig()
 	if err != nil {
 		return errors.New("offline-generation-failed")
 	}
-	cmd, err := office91PythonCommand(ctx, pythonPath, genScriptPath())
-	if err != nil {
-		return errors.New("offline-generation-failed")
-	}
-	// Cancellation must stop the generator's Mihomo validation child too.
-	// Content-bearing generator exceptions must not become API diagnostics.
-	if err := cmd.Run(); err != nil {
+	if _, err := buildEngineConfig(ctx, cfg, nil); err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
