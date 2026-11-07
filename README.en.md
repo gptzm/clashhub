@@ -2,6 +2,8 @@
 
 [简体中文](README.md) · [English](README.en.md)
 
+**macOS multi-airport aggregation · dual-route AI traffic · Claude fixed-node / Codex same-region switching**
+
 A macOS **region-specific node aggregator** and routing supervisor with a menu-bar console, **ClashHub**.
 
 > **Platform: macOS 14+ only; there is no Windows or Linux build.** The daemon relies on macOS system-proxy and network-service APIs, and the GUI is SwiftUI.
@@ -15,15 +17,15 @@ A local fallback proxy (`127.0.0.1:7890` by default) is used only when every can
 
 ## Screenshots
 
-![Routes and nodes](docs/screenshots/dashboard.png)
+![ClashHub macOS multi-airport aggregation and dual-route AI traffic](docs/screenshots/dashboard.png)
 
-![Statistics and health](docs/screenshots/stats.png)
+![ClashHub node health and source/node traffic statistics](docs/screenshots/stats.png)
 
 > Airports, nodes and traffic in the screenshots are examples; no subscription URLs or keys are shown.
 
-## What it solves
+## Why not another Clash client
 
-A single region often spans several airports, subscriptions and client profiles. Keeping merged groups, priorities and failover rules in a GUI client is tedious and tends to flap. ClashHub turns that into one local supervisor:
+A single region often spans several airports, subscriptions and client profiles. Keeping merged groups, priorities and failover rules in a GUI client is tedious and tends to flap. ClashHub is not another general-purpose Clash client; it turns **multi-airport aggregation plus runtime selection** into one local supervisor:
 
 - aggregates nodes of a **chosen region** from several sources and picks by source/node priority;
 - uses existing profiles read-only — it never edits FlClash's database or configuration;
@@ -32,12 +34,21 @@ A single region often spans several airports, subscriptions and client profiles.
 
 The region is controlled by `aggregate_keywords` (Japan by default: 日本 / JP / 东京 / 大阪 / Tokyo / Osaka …). Change it for another region.
 
-### Practical advice: Codex vs. Claude
+### How it differs
+
+| Approach | What it does | What it does not cover |
+| --- | --- | --- |
+| General Clash clients (Verge / Party / FlClash) | Profile management, rules, TUN | No multi-airport source priority, no runtime ordinary/AI dual route |
+| Subscription merge/converters (Sub-Store / miaomiaowu / ClashForge) | Merge, convert and generate a new subscription | No local runtime selection, health probing or failover |
+| AI rule sets (ClashRuleSet etc.) | AI domain routing rules | No node management, priority or switching |
+| ClashHub | Aggregates multiple Clash/FlClash sources, routes ordinary and AI traffic independently, switches by airport/node priority and health, falls back only when everything fails | Not a general client; macOS only for now |
+
+## Use cases: Claude fixed node, Codex same-region switching
 
 These are recommendations, not enforced rules:
 
+- **Claude Code / Claude**: lock a stable node from the **AI traffic** card at the top of the app. Claude is more sensitive to egress region and session continuity; frequent automatic switching can trigger risk controls or interrupt long sessions.
 - **Codex**: switching between nodes *within the same region* is usually safe. Its requests tolerate brief reconnects, and a node change rarely breaks the session.
-- **Claude**: lock a stable node from the **AI traffic** card at the top of the app. Claude is more sensitive to egress region and session continuity; frequent automatic switching can trigger risk controls or interrupt long sessions.
 
 The two routes lock independently: ordinary traffic can keep following automatic selection while AI traffic stays pinned, and vice versa.
 
@@ -230,6 +241,36 @@ Key files:
 | `cmd/clashhub/source_runtime.go` / `source_discovery.go` | Source fetching, caching and discovery |
 | `cmd/clashhub/route_traffic.go` | Ordinary vs. AI byte accounting |
 | `gui/main.swift` | ClashHub menu-bar app |
+
+## FAQ
+
+### How do I aggregate several Clash airports?
+
+Add local YAML paths or subscription URLs under **Settings → Airports**; URL profiles installed by FlClash are discovered automatically. ClashHub reads existing profiles read-only and merges their nodes into one pool by source and node priority.
+
+### How are ordinary and AI traffic routed to different nodes?
+
+ClashHub runs two independent routes: ordinary traffic uses the **Ordinary traffic** selector, while official OpenAI / Claude / Gemini / Grok domains use the **AI traffic** selector. They probe, switch and report separately.
+
+### Should Claude Code use a fixed node?
+
+Yes, that is the safer default. Claude is sensitive to egress region and session continuity; frequent IP changes can increase risk-control friction. Use **Lock** on the AI traffic card — ordinary traffic keeps following automatic selection.
+
+### Can Codex switch nodes within one region?
+
+Usually yes. Codex tolerates brief reconnects, and a node change inside the same region rarely breaks a session. Lock the AI traffic node separately if a long task needs maximum stability.
+
+### How do airport and node priorities work?
+
+Both sources and nodes support five tiers: `highest / high / medium / low / lowest`. A subscription with less than 3 days left moves up one tier, less than 1 day moves up two. The node picker shows the inherited value such as **Default (high)** and allows per-node overrides.
+
+### What happens when every node fails?
+
+Only then does ClashHub use a fallback proxy (`127.0.0.1:7890` by default, configurable list). When a candidate recovers it tries to return to the primary route instead of staying on the fallback forever.
+
+### Is Windows or Linux supported?
+
+Not yet. macOS 14+ only: the daemon relies on macOS system-proxy and network-service APIs, and the GUI is SwiftUI.
 
 ## Recommended providers
 
