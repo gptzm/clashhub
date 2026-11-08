@@ -63,7 +63,7 @@ The two routes lock independently: ordinary traffic can keep following automatic
 - **Node lock** — one click on either route card pins the current node; click again to resume automatic selection.
 - **Sticky selection** — automatic mode changes node only on explicit failure; manual selection applies immediately without waiting for probes.
 - **Config update** — re-fetches every enabled source by subscription URL, **direct first and proxy on failure**, with a real progress percentage.
-- **Statistics & diagnostics** — health grid, per-source and per-node traffic rankings, 24-hour domain TOP 10, persistent cumulative domain history (survives the 48-hour rolling window), 20-per-page pagination and custom domain blocking.
+- **Statistics & diagnostics** — health grid, per-source and per-node traffic rankings, 24-hour domain TOP 10, persistent cumulative domain history (survives the 48-hour rolling window), 20-per-page pagination and custom domain blocking; traffic uses 1024-based units (1 KB = 1024 B).
 - **Source management** — discovers FlClash profiles automatically, allows editing subscription URLs, and lets you delete user-added subscriptions (cache cleanup + engine reload included).
 - **Optional local module** — offline import of an encrypted local profile is off by default and must be enabled in Settings; no keys are shipped.
 - **Menu-bar GUI** — current node, both route rates, reset time and task state at a glance.

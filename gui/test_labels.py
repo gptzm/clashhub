@@ -357,6 +357,9 @@ let overflow = targetTraffic([row("overflow", "a", UInt64.max, 1), row("overflow
 precondition(overflow[0].total == nil)
 let large = targetTraffic([row("big", "a", UInt64.max, UInt64.max)])[0]
 precondition(totalBytes(large) == "36893488147419103230 字节")
+precondition(bytes(1024) == "1.0 KB")
+precondition(bytes(1536) == "1.5 KB")
+precondition(bytes(1_048_576) == "1.0 MB")
 let ranks = try JSONDecoder().decode([DomainRank].self, from: Data("""
 [{"target":"a","upload":18446744073709551615,"download":1,"detail_started_at":"2026-01-01T00:00:00Z"},
  {"target":"b","upload":18446744073709551615,"download":2,"detail_started_at":"bad"},
@@ -457,10 +460,11 @@ precondition(rateText(.infinity) == "—")
 precondition(rateText(-1) == "—")
 precondition(rateText(0) == "0 B/s")
 precondition(rateText(999) == "999 B/s")
-precondition(rateText(1000) == "1.0 KB/s")
-precondition(rateText(1500) == "1.5 KB/s")
-precondition(rateText(1_000_000) == "1.0 MB/s")
-precondition(rateText(1_500_000) == "1.5 MB/s")
+precondition(rateText(1000) == "1000 B/s")
+precondition(rateText(1024) == "1.0 KB/s")
+precondition(rateText(1536) == "1.5 KB/s")
+precondition(rateText(1_048_576) == "1.0 MB/s")
+precondition(rateText(1_572_864) == "1.5 MB/s")
 precondition(model.nodeRateText("internal") == "↑ —  ↓ —")
 model.nodeTraffic = response("ok", now)
 precondition(model.nodeRateText("internal") == "↑ 1.0 KB/s  ↓ 2.0 KB/s")

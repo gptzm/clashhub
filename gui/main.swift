@@ -2715,7 +2715,16 @@ func trafficGreater(_ au: UInt64?, _ ad: UInt64?, _ bu: UInt64?, _ bd: UInt64?) 
 func bytes(_ n: UInt64?) -> String {
     guard let n else { return "未知" }
     if n == 0 { return "0 B" }
-    return n > UInt64(Int64.max) ? "\(n) 字节" : ByteCountFormatter.string(fromByteCount: Int64(n), countStyle: .file)
+    if n > UInt64(Int64.max) { return "\(n) 字节" }
+    let units = ["B", "KB", "MB", "GB", "TB", "PB", "EB"]
+    var value = Double(n)
+    var index = 0
+    while value >= 1024 && index < units.count - 1 {
+        value /= 1024
+        index += 1
+    }
+    if index == 0 { return "\(n) B" }
+    return String(format: value >= 100 ? "%.0f %@" : "%.1f %@", value, units[index])
 }
 // The statistics API supplies normalized hostnames or IP literals, not URLs.
 // Never silently present an incomplete or overflowing aggregate as a complete total.
@@ -3705,14 +3714,14 @@ struct MenuPanel: View {
     }
 }
 func compactRate(_ rate: Double) -> String {
-    if rate >= 1_000_000 { return String(format: "%.1fM", rate / 1_000_000) }
-    if rate >= 1000 { return String(format: "%.0fK", rate / 1000) }
+    if rate >= 1_048_576 { return String(format: "%.1fM", rate / 1_048_576) }
+    if rate >= 1024 { return String(format: "%.0fK", rate / 1024) }
     return String(format: "%.0fB", rate)
 }
 func rateText(_ rate: Double?) -> String {
     guard let rate, rate.isFinite, rate >= 0 else { return "—" }
-    if rate >= 1_000_000 { return String(format: "%.1f MB/s", rate / 1_000_000) }
-    if rate >= 1000 { return String(format: "%.1f KB/s", rate / 1000) }
+    if rate >= 1_048_576 { return String(format: "%.1f MB/s", rate / 1_048_576) }
+    if rate >= 1024 { return String(format: "%.1f KB/s", rate / 1024) }
     return String(format: "%.0f B/s", rate)
 }
 struct MenuStatusLabel: View {
